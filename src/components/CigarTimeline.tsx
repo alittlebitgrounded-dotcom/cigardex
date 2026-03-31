@@ -87,10 +87,10 @@ interface Props {
   cigarId: string
   userRole?: string | null
   userId?: string | null
+  targetType?: 'cigar' | 'brand'  // ← add this line
 }
 
-export default function CigarTimeline({ cigarId, userRole, userId }: Props) {
-  const [entries, setEntries] = useState<TimelineEntry[]>([])
+export default function CigarTimeline({ cigarId, userRole, userId, targetType = 'cigar' }: Props) {  const [entries, setEntries] = useState<TimelineEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -108,11 +108,11 @@ export default function CigarTimeline({ cigarId, userRole, userId }: Props) {
 
   async function loadTimeline() {
     setLoading(true)
-    const { data } = await supabase
-      .from('cigar_timeline_live')
-      .select('*')
-      .eq('cigar_id', cigarId)
-      .order('event_date', { ascending: true })
+const { data } = await supabase
+  .from('cigar_timeline_live')
+  .select('*')
+  .eq(targetType === 'brand' ? 'brand_id' : 'cigar_id', cigarId)
+  .order('event_date', { ascending: true })
     setEntries(data ?? [])
     setLoading(false)
   }
@@ -129,8 +129,8 @@ export default function CigarTimeline({ cigarId, userRole, userId }: Props) {
     const precision = datePrecision(form.month, form.day)
 
     const { error } = await supabase.from('cigar_timeline').insert({
-      cigar_id:       cigarId,
-      event_type:     form.event_type,
+  cigar_id:       targetType === 'brand' ? null : cigarId,
+  brand_id:       targetType === 'brand' ? cigarId : null,  event_type:     form.event_type,
      event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
       date_precision: precision,
       title:          form.title.trim(),
