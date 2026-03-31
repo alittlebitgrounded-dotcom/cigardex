@@ -131,7 +131,7 @@ export default function CigarTimeline({ cigarId, userRole, userId }: Props) {
     const { error } = await supabase.from('cigar_timeline').insert({
       cigar_id:       cigarId,
       event_type:     form.event_type,
-      event_date:     dateString ? `${dateString}-01`.slice(0, 10) : null,
+     event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
       date_precision: precision,
       title:          form.title.trim(),
       body:           form.body.trim() || null,

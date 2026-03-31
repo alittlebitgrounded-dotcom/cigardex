@@ -515,8 +515,7 @@ async function rejectTimelineEntry(id: string) {
     }
   }
 
-  async function deleteFeedback(id: string) {   // ← this one already exists, comes after
-  }
+  
   async function deleteFeedback(id: string) {
     await supabase.from('feedback').delete().eq('id', id)
     setFeedbackItems(prev => prev.filter(f => f.id !== id))
