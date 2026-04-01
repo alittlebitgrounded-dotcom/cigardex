@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ReportError from '@/components/ReportError'
+import CigarTimeline from '@/components/CigarTimeline'
 import type { User } from '@supabase/supabase-js'
 
 type Brand = {
@@ -239,7 +240,6 @@ export default function BrandPage() {
                 {lines.length > 0 && <span style={{ color: '#c4a96a', fontSize: 13 }}>📋 {lines.length} lines</span>}
               </div>
             </div>
-            {/* Report Error button — logged in users only */}
             {currentUser && (
               <button
                 onClick={() => setShowReportError(true)}
@@ -250,7 +250,6 @@ export default function BrandPage() {
             )}
           </div>
 
-          {/* Report Error form */}
           {showReportError && currentUser && (
             <div style={{ marginBottom: 20 }}>
               <ReportError
@@ -410,11 +409,8 @@ export default function BrandPage() {
         {activeSection === 'history' && (
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 24px' }}>Brand History</h1>
-            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 32, textAlign: 'center', color: '#aaa' }}>
-              <p style={{ fontSize: 16, marginBottom: 8 }}>No history recorded yet</p>
-              <p style={{ fontSize: 13 }}>Ownership changes, acquisitions, and milestones will appear here</p>
-            </div>
-          </div>
+           <CigarTimeline targetType="brand" targetId={brandId} userId={currentUser?.id ?? null} />
+                    </div>
         )}
 
       </div>

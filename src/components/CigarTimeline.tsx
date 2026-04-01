@@ -84,14 +84,13 @@ function datePrecision(month: string, day: string): 'day' | 'month' | 'year' {
 }
 
 interface Props {
-  cigarId: string
+  targetId: string
   userRole?: string | null
   userId?: string | null
-  targetType?: 'cigar' | 'brand'  // ← add this line
+  targetType?: 'cigar' | 'brand'
 }
 
-export default function CigarTimeline({ cigarId, userRole, userId, targetType = 'cigar' }: Props) {  const [entries, setEntries] = useState<TimelineEntry[]>([])
-  const [loading, setLoading] = useState(true)
+export default function CigarTimeline({ targetId, userRole, userId, targetType = 'cigar' }: Props) {  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState('')
@@ -102,16 +101,17 @@ export default function CigarTimeline({ cigarId, userRole, userId, targetType = 
     title: '', body: '', source: '',
   })
 
+  const [entries, setEntries] = useState<TimelineEntry[]>([])
   const canPostDirectly = userRole === 'super_admin' || userRole === 'moderator'
 
-  useEffect(() => { loadTimeline() }, [cigarId])
+useEffect(() => { loadTimeline() }, [targetId])
 
   async function loadTimeline() {
     setLoading(true)
 const { data } = await supabase
   .from('cigar_timeline_live')
   .select('*')
-  .eq(targetType === 'brand' ? 'brand_id' : 'cigar_id', cigarId)
+.eq(targetType === 'brand' ? 'brand_id' : 'cigar_id', targetId)
   .order('event_date', { ascending: true })
     setEntries(data ?? [])
     setLoading(false)
@@ -129,9 +129,9 @@ const { data } = await supabase
     const precision = datePrecision(form.month, form.day)
 
     const { error } = await supabase.from('cigar_timeline').insert({
-  cigar_id:       targetType === 'brand' ? null : cigarId,
-  brand_id:       targetType === 'brand' ? cigarId : null,  event_type:     form.event_type,
-     event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
+  cigar_id: targetType === 'brand' ? null : targetId,
+brand_id: targetType === 'brand' ? targetId : null,
+   event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
       date_precision: precision,
       title:          form.title.trim(),
       body:           form.body.trim() || null,
