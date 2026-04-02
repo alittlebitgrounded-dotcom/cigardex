@@ -242,9 +242,20 @@ export default function Home() {
     if (selectedStrength) query = query.eq('strength', selectedStrength)
     if (selectedCountries.length === 1) query = query.eq('country_of_origin', selectedCountries[0])
     if (selectedCountries.length > 1) query = query.in('country_of_origin', selectedCountries)
-    if (search.trim()) query = query.or(`name.ilike.%${search.trim()}%,line.ilike.%${search.trim()}%,vitola.ilike.%${search.trim()}%`)
-    const { data } = await query
-    if (data) setSearchResults(data as unknown as Cigar[])
+ if (search.trim()) {
+  const first = search.trim().split(/\s+/)[0]
+  query = query.or(`name.ilike.%${first}%,line.ilike.%${first}%,vitola.ilike.%${first}%`)
+}
+   const { data } = await query
+   if (data) {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const filtered = data.filter(c => {
+    const haystack = [c.name, c.line, c.vitola, (c.brand_accounts as any)?.name].filter(Boolean).join(' ').toLowerCase()
+    return words.every(w => haystack.includes(w))
+  })
+  setSearchResults(filtered as unknown as Cigar[])
+}
+
     setSearchLoading(false)
   }
 

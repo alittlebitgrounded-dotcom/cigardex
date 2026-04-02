@@ -15,6 +15,9 @@ export default function Header() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
+      else if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('signin') === 'true') {
+        setShowAuth(true)
+      }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
@@ -82,10 +85,10 @@ export default function Header() {
                   <a href={`/profile/${userProfile?.username}`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Profile</a>
                   <a href="/humidor" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Humidor</a>
                   <a href="/wishlist" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Wishlist</a>
-                <a href={`/profile/${userProfile?.username}?tab=reviews`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>
-  My Reviews
-</a>
-   {(userProfile?.role === 'super_admin' || userProfile?.role === 'moderator') && (
+                  <a href={`/profile/${userProfile?.username}?tab=reviews`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>
+                    My Reviews
+                  </a>
+                  {(userProfile?.role === 'super_admin' || userProfile?.role === 'moderator') && (
                     <a href="/admin" style={{ display: 'block', padding: '10px 16px', borderTop: '1px solid #f0e8dc', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>Admin Panel</a>
                   )}
                   <button onClick={handleSignOut} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', fontSize: 14, color: '#b71c1c', cursor: 'pointer', borderTop: '1px solid #f0e8dc' }}>Sign Out</button>

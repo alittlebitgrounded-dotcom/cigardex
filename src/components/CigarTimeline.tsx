@@ -90,7 +90,8 @@ interface Props {
   targetType?: 'cigar' | 'brand'
 }
 
-export default function CigarTimeline({ targetId, userRole, userId, targetType = 'cigar' }: Props) {  const [loading, setLoading] = useState(true)
+export default function CigarTimeline({ targetId, userRole, userId, targetType = 'cigar' }: Props) {
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState('')
@@ -104,15 +105,15 @@ export default function CigarTimeline({ targetId, userRole, userId, targetType =
   const [entries, setEntries] = useState<TimelineEntry[]>([])
   const canPostDirectly = userRole === 'super_admin' || userRole === 'moderator'
 
-useEffect(() => { loadTimeline() }, [targetId])
+  useEffect(() => { loadTimeline() }, [targetId])
 
   async function loadTimeline() {
     setLoading(true)
-const { data } = await supabase
-  .from('cigar_timeline_live')
-  .select('*')
-.eq(targetType === 'brand' ? 'brand_id' : 'cigar_id', targetId)
-  .order('event_date', { ascending: true })
+    const { data } = await supabase
+      .from('cigar_timeline_live')
+      .select('*')
+      .eq(targetType === 'brand' ? 'brand_id' : 'cigar_id', targetId)
+      .order('event_date', { ascending: true })
     setEntries(data ?? [])
     setLoading(false)
   }
@@ -129,9 +130,9 @@ const { data } = await supabase
     const precision = datePrecision(form.month, form.day)
 
     const { error } = await supabase.from('cigar_timeline').insert({
-  cigar_id: targetType === 'brand' ? null : targetId,
-brand_id: targetType === 'brand' ? targetId : null,
-   event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
+      cigar_id:       targetType === 'brand' ? null : targetId,
+      brand_id:       targetType === 'brand' ? targetId : null,
+      event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
       date_precision: precision,
       title:          form.title.trim(),
       body:           form.body.trim() || null,
@@ -196,7 +197,7 @@ brand_id: targetType === 'brand' ? targetId : null,
               Add First Entry
             </button>
           ) : (
-            <a href="/" style={{ color: '#8b5e2a', fontSize: 14, textDecoration: 'underline' }}>Sign in to add an entry</a>
+            <a href="/?signin=true" style={{ color: '#8b5e2a', fontSize: 14, textDecoration: 'underline' }}>Sign in to add an entry</a>
           )}
         </div>
       )}
@@ -204,7 +205,6 @@ brand_id: targetType === 'brand' ? targetId : null,
       {/* ── Timeline entries ── */}
       {entries.length > 0 && (
         <div style={{ position: 'relative' }}>
-          {/* Vertical connector line */}
           <div style={{
             position: 'absolute', left: 20, top: 24, bottom: 24,
             width: 2, background: 'linear-gradient(to bottom, #e8ddd0, #d4b896, #e8ddd0)',
@@ -219,9 +219,7 @@ brand_id: targetType === 'brand' ? targetId : null,
 
               return (
                 <div key={entry.id} style={{ display: 'flex', gap: 0, position: 'relative', paddingBottom: isLast ? 0 : 24 }}>
-                  {/* Left — date + dot */}
                   <div style={{ width: 42, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 18 }}>
-                    {/* Dot */}
                     <div style={{
                       width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
                       background: meta.color, border: '3px solid #faf8f5',
@@ -230,7 +228,6 @@ brand_id: targetType === 'brand' ? targetId : null,
                     }} />
                   </div>
 
-                  {/* Right — event card */}
                   <div style={{ flex: 1, paddingTop: 8 }}>
                     <div style={{
                       background: '#fff', borderRadius: 10,
@@ -239,9 +236,7 @@ brand_id: targetType === 'brand' ? targetId : null,
                       padding: '16px 20px',
                       boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                     }}>
-                      {/* Header row: badge + date */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                        {/* Event type badge */}
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
                           background: meta.bg, color: meta.color,
@@ -251,7 +246,6 @@ brand_id: targetType === 'brand' ? targetId : null,
                         }}>
                           {meta.icon} {meta.label}
                         </span>
-                        {/* Date */}
                         {dateStr && (
                           <span style={{
                             fontSize: 13, fontWeight: 600, color: '#8b5e2a',
@@ -263,19 +257,16 @@ brand_id: targetType === 'brand' ? targetId : null,
                         )}
                       </div>
 
-                      {/* Title */}
                       <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#1a0a00', lineHeight: 1.4, fontFamily: 'Georgia, serif' }}>
                         {entry.title}
                       </p>
 
-                      {/* Body */}
                       {entry.body && (
                         <p style={{ margin: '0 0 10px', fontSize: 13, color: '#5a3a1a', lineHeight: 1.7 }}>
                           {entry.body}
                         </p>
                       )}
 
-                      {/* Source */}
                       {entry.source && (
                         <div style={{ marginTop: entry.body ? 0 : 6 }}>
                           {entry.source.startsWith('http') ? (
@@ -297,7 +288,6 @@ brand_id: targetType === 'brand' ? targetId : null,
             })}
           </div>
 
-          {/* Add entry button below entries */}
           {userId && !showForm && (
             <div style={{ marginTop: 28, paddingLeft: 42 }}>
               <button onClick={() => setShowForm(true)}
@@ -312,8 +302,6 @@ brand_id: targetType === 'brand' ? targetId : null,
       {/* ── Submission form ── */}
       {showForm && (
         <div style={{ marginTop: entries.length > 0 ? 28 : 0, background: '#fff', border: '1px solid #e8ddd0', borderRadius: 12, padding: 28, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-
-          {/* Form header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>
@@ -332,8 +320,6 @@ brand_id: targetType === 'brand' ? targetId : null,
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Event type — chips */}
             <div>
               <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
                 Event Type <span style={{ color: '#b71c1c' }}>*</span>
@@ -359,7 +345,6 @@ brand_id: targetType === 'brand' ? targetId : null,
               </div>
             </div>
 
-            {/* Date fields */}
             <div>
               <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
                 Date <span style={{ color: '#b71c1c' }}>*</span>
@@ -368,13 +353,7 @@ brand_id: targetType === 'brand' ? targetId : null,
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Year *</label>
-                  <input
-                    type="number" min="1800" max={new Date().getFullYear()}
-                    placeholder="e.g. 2014"
-                    value={form.year}
-                    onChange={e => setForm(p => ({ ...p, year: e.target.value }))}
-                    style={inputStyle}
-                  />
+                  <input type="number" min="1800" max={new Date().getFullYear()} placeholder="e.g. 2014" value={form.year} onChange={e => setForm(p => ({ ...p, year: e.target.value }))} style={inputStyle} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Month (optional)</label>
@@ -387,14 +366,7 @@ brand_id: targetType === 'brand' ? targetId : null,
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Day</label>
-                  <input
-                    type="number" min="1" max="31"
-                    placeholder="—"
-                    value={form.day}
-                    onChange={e => setForm(p => ({ ...p, day: e.target.value }))}
-                    style={inputStyle}
-                    disabled={!form.month}
-                  />
+                  <input type="number" min="1" max="31" placeholder="—" value={form.day} onChange={e => setForm(p => ({ ...p, day: e.target.value }))} style={inputStyle} disabled={!form.month} />
                 </div>
               </div>
               {form.year && (
@@ -404,44 +376,25 @@ brand_id: targetType === 'brand' ? targetId : null,
               )}
             </div>
 
-            {/* Title */}
             <div>
               <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 6, fontWeight: 600 }}>
                 Title <span style={{ color: '#b71c1c' }}>*</span>
               </label>
-              <input
-                value={form.title}
-                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                placeholder='e.g. "Won #1 Cigar of the Year — Cigar Aficionado 2014"'
-                style={inputStyle}
-              />
+              <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder='e.g. "Won #1 Cigar of the Year — Cigar Aficionado 2014"' style={inputStyle} />
             </div>
 
-            {/* Details */}
             <div>
               <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 6, fontWeight: 600 }}>
                 Details <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span>
               </label>
-              <textarea
-                value={form.body}
-                onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
-                rows={3}
-                placeholder="Additional context, background, or notes..."
-                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}
-              />
+              <textarea value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={3} placeholder="Additional context, background, or notes..." style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
             </div>
 
-            {/* Source */}
             <div>
               <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 6, fontWeight: 600 }}>
                 Source <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span>
               </label>
-              <input
-                value={form.source}
-                onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
-                placeholder="https://... or 'Cigar Aficionado, Jan 2014'"
-                style={inputStyle}
-              />
+              <input value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))} placeholder="https://... or 'Cigar Aficionado, Jan 2014'" style={inputStyle} />
             </div>
 
             {submitError && (
@@ -472,7 +425,7 @@ brand_id: targetType === 'brand' ? targetId : null,
       {/* Sign in prompt */}
       {!userId && entries.length > 0 && (
         <p style={{ fontSize: 13, color: '#aaa', marginTop: 24, paddingLeft: 42 }}>
-          <a href="/" style={{ color: '#8b5e2a', textDecoration: 'underline' }}>Sign in</a> to submit a timeline entry.
+          <a href="/?signin=true" style={{ color: '#8b5e2a', textDecoration: 'underline' }}>Sign in</a> to submit a timeline entry.
         </p>
       )}
     </div>
