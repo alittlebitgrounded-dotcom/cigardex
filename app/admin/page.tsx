@@ -108,6 +108,8 @@ export default function AdminPage() {
   const [mergeLoading, setMergeLoading] = useState(false)
 
   const [applications, setApplications] = useState<IndustryApplication[]>([])
+  const [appNotes, setAppNotes] = useState<Record<string, string>>({})
+  const [appActioning, setAppActioning] = useState<string | null>(null)
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([])
   const [feedbackNotes, setFeedbackNotes] = useState<Record<string, string>>({})
 
@@ -283,17 +285,42 @@ export default function AdminPage() {
     if (data) setApplications(data)
   }
   async function approveApplication(app: IndustryApplication) {
-    const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
-    if (userRow) {
-      const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : 'premium'
-      await supabase.from('users').update({ role: newRole }).eq('id', userRow.id)
+    const note = appNotes[app.id] || ''
+    setAppActioning(app.id)
+    try {
+      const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
+      if (userRow) {
+        const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : 'premium'
+        await supabase.from('users').update({ role: newRole }).eq('id', userRow.id)
+      } else {
+        const { data: { session } } = await supabase.auth.getSession()
+const res = await fetch('/api/invite', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session?.access_token}`,
+  },
+  body: JSON.stringify({ email: app.email, role_type: app.role_type, company: app.company }),
+})
+if (!res.ok) {
+  const err = await res.json()
+  setMsg(`Invite failed: ${err.error}`)
+  setAppActioning(null)
+  return
+}
+      }
+      await supabase.from('industry_applications').update({ status: 'approved', admin_note: note || null }).eq('id', app.id)
+      setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved', admin_note: note || null } : a))
+    } finally {
+      setAppActioning(null)
     }
-    await supabase.from('industry_applications').update({ status: 'approved' }).eq('id', app.id)
-    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved' } : a))
   }
   async function rejectApplication(id: string) {
-    await supabase.from('industry_applications').update({ status: 'rejected' }).eq('id', id)
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'rejected' } : a))
+    const note = appNotes[id] || ''
+    setAppActioning(id)
+    await supabase.from('industry_applications').update({ status: 'rejected', admin_note: note || null }).eq('id', id)
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'rejected', admin_note: note || null } : a))
+    setAppActioning(null)
   }
   async function fetchFeedback() {
     const { data } = await supabase.from('feedback').select('*').order('created_at', { ascending: false })
@@ -327,23 +354,6 @@ export default function AdminPage() {
     await logAction('reject_timeline', 'cigar_timeline', id, 'Rejected')
     setTimelineEntries(prev => prev.filter(e => e.id !== id))
   }
-  function buildTimelinePayload() {
-    const year = (timelineEditForm.year || liveEditForm.year || '').trim()
-    const month = (timelineEditForm.month || liveEditForm.month || '').trim()
-    const day = (timelineEditForm.day || liveEditForm.day || '').trim()
-    if (!year) throw new Error('Year is required')
-    let event_date = `${year}-01-01`
-    let date_precision: 'year' | 'month' | 'day' = 'year'
-    if (month) { event_date = `${year}-${month}-01`; date_precision = 'month' }
-    if (month && day) { event_date = `${year}-${month}-${day.padStart(2, '0')}`; date_precision = 'day' }
-    return {
-      event_type: (timelineEditForm.event_type || liveEditForm.event_type || 'note'),
-      event_date, date_precision,
-      title: (timelineEditForm.title || liveEditForm.title || '').trim(),
-      body: (timelineEditForm.body || liveEditForm.body || '').trim() || null,
-      source: (timelineEditForm.source || liveEditForm.source || '').trim() || null,
-    }
-  }
   function buildPendingPayload() {
     const year = (timelineEditForm.year || '').trim()
     const month = (timelineEditForm.month || '').trim()
@@ -353,13 +363,7 @@ export default function AdminPage() {
     let date_precision: 'year' | 'month' | 'day' = 'year'
     if (month) { event_date = `${year}-${month}-01`; date_precision = 'month' }
     if (month && day) { event_date = `${year}-${month}-${day.padStart(2, '0')}`; date_precision = 'day' }
-    return {
-      event_type: timelineEditForm.event_type || 'note',
-      event_date, date_precision,
-      title: (timelineEditForm.title || '').trim(),
-      body: (timelineEditForm.body || '').trim() || null,
-      source: (timelineEditForm.source || '').trim() || null,
-    }
+    return { event_type: timelineEditForm.event_type || 'note', event_date, date_precision, title: (timelineEditForm.title || '').trim(), body: (timelineEditForm.body || '').trim() || null, source: (timelineEditForm.source || '').trim() || null }
   }
   function buildLivePayload() {
     const year = (liveEditForm.year || '').trim()
@@ -370,13 +374,7 @@ export default function AdminPage() {
     let date_precision: 'year' | 'month' | 'day' = 'year'
     if (month) { event_date = `${year}-${month}-01`; date_precision = 'month' }
     if (month && day) { event_date = `${year}-${month}-${day.padStart(2, '0')}`; date_precision = 'day' }
-    return {
-      event_type: liveEditForm.event_type || 'note',
-      event_date, date_precision,
-      title: (liveEditForm.title || '').trim(),
-      body: (liveEditForm.body || '').trim() || null,
-      source: (liveEditForm.source || '').trim() || null,
-    }
+    return { event_type: liveEditForm.event_type || 'note', event_date, date_precision, title: (liveEditForm.title || '').trim(), body: (liveEditForm.body || '').trim() || null, source: (liveEditForm.source || '').trim() || null }
   }
   async function saveTimelineEdit(id: string) {
     try {
@@ -389,9 +387,8 @@ export default function AdminPage() {
       setTimelineEditId(null); setTimelineEditForm({})
       setMsg('Timeline entry updated')
       await logAction('edit_timeline', 'cigar_timeline', id, 'Edited pending timeline entry')
-    } catch (err: any) {
-      setMsg(err?.message || 'Could not save timeline entry')
-    } finally { setTimelineSaving(false) }
+    } catch (err: any) { setMsg(err?.message || 'Could not save timeline entry') }
+    finally { setTimelineSaving(false) }
   }
   async function saveAndApproveTimelineEdit(id: string) {
     try {
@@ -404,9 +401,8 @@ export default function AdminPage() {
       setTimelineEditId(null); setTimelineEditForm({})
       setMsg('Timeline entry saved and approved')
       await logAction('approve_timeline', 'cigar_timeline', id, 'Edited and approved timeline entry')
-    } catch (err: any) {
-      setMsg(err?.message || 'Could not save and approve timeline entry')
-    } finally { setTimelineSaving(false) }
+    } catch (err: any) { setMsg(err?.message || 'Could not save and approve timeline entry') }
+    finally { setTimelineSaving(false) }
   }
   async function startTimelineMerge(entry: any) {
     setTimelineMergeId(entry.id); setTimelineMergeTargetId(null)
@@ -440,12 +436,9 @@ export default function AdminPage() {
       setTimelineMergeId(null); setTimelineMergeTargets([]); setTimelineMergeTargetId(null); setTimelineMergeFields({})
       setMsg('Timeline entry merged')
       await logAction('merge_timeline', 'cigar_timeline', timelineMergeId, `Merged into ${timelineMergeTargetId}; fields: ${selectedFields.join(', ')}`)
-    } catch (err: any) {
-      setMsg(err?.message || 'Could not merge timeline entry')
-    } finally { setTimelineSaving(false) }
+    } catch (err: any) { setMsg(err?.message || 'Could not merge timeline entry') }
+    finally { setTimelineSaving(false) }
   }
-
-  // Live timeline functions
   async function loadDismissedDupes() {
     const { data } = await supabase.from('timeline_dismissed_dupes').select('dupe_key')
     if (data) setDismissedDupeKeys(new Set(data.map((d: any) => d.dupe_key)))
@@ -453,12 +446,7 @@ export default function AdminPage() {
   async function fetchLiveTimeline(scopeBrandId?: string | null) {
     setLiveLoading(true)
     await loadDismissedDupes()
-    let query = supabase
-      .from('cigar_timeline')
-      .select('id, cigar_id, brand_id, event_type, event_date, date_precision, title, body, source, status, created_at, submitted_by, cigars(name), brand_accounts(name)')
-      .eq('status', 'live')
-      .order('created_at', { ascending: false })
-      .limit(300)
+    let query = supabase.from('cigar_timeline').select('id, cigar_id, brand_id, event_type, event_date, date_precision, title, body, source, status, created_at, submitted_by, cigars(name), brand_accounts(name)').eq('status', 'live').order('created_at', { ascending: false }).limit(300)
     if (scopeBrandId) query = query.eq('brand_id', scopeBrandId)
     const { data } = await query
     setLiveEntries(data ?? [])
@@ -475,28 +463,22 @@ export default function AdminPage() {
       setLiveEditId(null); setLiveEditForm({})
       setMsg('Entry updated')
       await logAction('edit_timeline_live', 'cigar_timeline', id, 'Edited live timeline entry')
-    } catch (err: any) {
-      setMsg(err?.message || 'Could not save')
-    } finally { setLiveSaving(false) }
+    } catch (err: any) { setMsg(err?.message || 'Could not save') }
+    finally { setLiveSaving(false) }
   }
   async function deleteLiveEntry(id: string) {
     const { error } = await supabase.from('cigar_timeline').delete().eq('id', id)
     if (error) { setMsg(`Delete failed: ${error.message}`); return }
     setLiveEntries(prev => prev.filter(e => e.id !== id))
-    setLiveDeleteConfirm(null)
-    setMsg('Entry deleted')
+    setLiveDeleteConfirm(null); setMsg('Entry deleted')
     await logAction('delete_timeline_live', 'cigar_timeline', id, 'Deleted live timeline entry')
   }
   async function deleteLiveEntryFromGroup(id: string) {
     const { error } = await supabase.from('cigar_timeline').delete().eq('id', id)
     if (error) { setMsg(`Delete failed: ${error.message}`); return }
-    setDupesFound(prev => prev
-      .map(group => group.filter((e: any) => e.id !== id))
-      .filter(group => group.length > 1)
-    )
+    setDupesFound(prev => prev.map(group => group.filter((e: any) => e.id !== id)).filter(group => group.length > 1))
     setLiveEntries(prev => prev.filter(e => e.id !== id))
-    setLiveDeleteConfirm(null)
-    setMsg('Entry deleted')
+    setLiveDeleteConfirm(null); setMsg('Entry deleted')
     await logAction('delete_timeline_live', 'cigar_timeline', id, 'Deleted duplicate live timeline entry')
   }
   async function dismissDupeGroup(key: string) {
@@ -509,13 +491,8 @@ export default function AdminPage() {
     }))
   }
   async function findTimelineDuplicates() {
-    setDupesLoading(true)
-    setDupesFound([])
-    const { data } = await supabase
-      .from('cigar_timeline')
-      .select('id, cigar_id, brand_id, event_type, event_date, title, created_at, cigars(name), brand_accounts(name)')
-      .eq('status', 'live')
-      .order('event_date', { ascending: true })
+    setDupesLoading(true); setDupesFound([])
+    const { data } = await supabase.from('cigar_timeline').select('id, cigar_id, brand_id, event_type, event_date, title, created_at, cigars(name), brand_accounts(name)').eq('status', 'live').order('event_date', { ascending: true })
     if (!data) { setDupesLoading(false); return }
     const seen: Record<string, any[]> = {}
     data.forEach(entry => {
@@ -523,17 +500,13 @@ export default function AdminPage() {
       if (!seen[key]) seen[key] = []
       seen[key].push(entry)
     })
-    const dupes = Object.values(seen)
-      .filter(group => group.length > 1)
-      .filter(group => {
-        const g = group[0]
-        const key = `${g.cigar_id || g.brand_id}||${g.event_type}||${g.event_date?.split('T')[0]}`
-        return !dismissedDupeKeys.has(key)
-      })
-    setDupesFound(dupes)
-    setDupesLoading(false)
+    const dupes = Object.values(seen).filter(group => group.length > 1).filter(group => {
+      const g = group[0]
+      const key = `${g.cigar_id || g.brand_id}||${g.event_type}||${g.event_date?.split('T')[0]}`
+      return !dismissedDupeKeys.has(key)
+    })
+    setDupesFound(dupes); setDupesLoading(false)
   }
-
   async function deleteFeedback(id: string) {
     await supabase.from('feedback').delete().eq('id', id)
     setFeedbackItems(prev => prev.filter(f => f.id !== id))
@@ -960,7 +933,9 @@ export default function AdminPage() {
                   <tbody>
                     {filteredUsers.map((u, i) => (
                       <tr key={u.id} style={{ borderBottom: '1px solid #f0e8dc', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
-                        <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: '#1a0a00' }}>{u.username}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: '#1a0a00' }}>
+                          <a href={`/admin/user/${u.id}`} style={{ color: '#1a0a00', textDecoration: 'none' }}>{u.username}</a>
+                        </td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{u.email}</td>
                         <td style={{ padding: '10px 14px' }}>
                           <select value={u.role} onChange={e => updateUserRole(u.id, e.target.value)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #d4b896', fontSize: 12 }}>
@@ -1130,22 +1105,69 @@ export default function AdminPage() {
                             <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: app.status === 'approved' ? '#e8f5e9' : app.status === 'rejected' ? '#fbe9e7' : '#fff3e0', color: app.status === 'approved' ? '#2e7d32' : app.status === 'rejected' ? '#b71c1c' : '#e65100' }}>{app.status}</span>
                           </div>
                           <p style={{ fontSize: 14, color: '#1a0a00', fontWeight: 600, margin: '0 0 2px' }}>{app.company}</p>
-                          <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 2px' }}>{app.email}{app.phone ? ` · ${app.phone}` : ''}</p>
-                          <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{new Date(app.created_at).toLocaleDateString()} · {app.role_type}</p>
-                        </div>
-                        {app.status === 'pending' && (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={() => approveApplication(app)} style={btnSuccess}>Approve</button>
-                            <button onClick={() => rejectApplication(app.id)} style={btnDanger}>Reject</button>
+                          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <p style={{ fontSize: 13, color: '#8b5e2a', margin: 0 }}>{app.email}{app.phone ? ` · ${app.phone}` : ''}</p>
+                            <a href={`mailto:${app.email}`} style={{ fontSize: 12, color: '#c4a96a', textDecoration: 'none', fontWeight: 500 }}>✉ Email applicant</a>
                           </div>
-                        )}
+                          <p style={{ fontSize: 12, color: '#aaa', margin: '2px 0 0' }}>{new Date(app.created_at).toLocaleDateString()} · {app.role_type}</p>
+                        </div>
                       </div>
-                      <div style={{ background: '#f5f0e8', borderRadius: 6, padding: 12, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+
+                      {/* Application details */}
+                      <div style={{ background: '#f5f0e8', borderRadius: 6, padding: 12, display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
                         {app.website && <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>WEBSITE</span><a href={app.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#1a0a00' }}>{app.website}</a></div>}
                         <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>ROLE</span><span style={{ fontSize: 13, color: '#1a0a00', fontWeight: 500 }}>{app.role_type}</span></div>
                         {app.message && <div style={{ flex: 1 }}><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>MESSAGE</span><span style={{ fontSize: 13, color: '#1a0a00' }}>{app.message}</span></div>}
                       </div>
-                      {app.status === 'approved' && <p style={{ fontSize: 12, color: '#2e7d32', margin: '10px 0 0', fontStyle: 'italic' }}>✓ User role has been updated to match their application type</p>}
+
+                      {/* Admin note */}
+                      {app.status === 'pending' && (
+                        <div style={{ marginBottom: 14 }}>
+                          <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
+                            Note <span style={{ color: '#bbb', fontWeight: 400 }}>(optional — saved with your decision)</span>
+                          </label>
+                          <textarea
+                            value={appNotes[app.id] ?? ''}
+                            onChange={e => setAppNotes(prev => ({ ...prev, [app.id]: e.target.value }))}
+                            placeholder='e.g. "Welcome! Your Drew Diplomat status has been noted." or "Could you clarify your relationship to the brand?"'
+                            rows={2}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      {app.status === 'pending' && (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button onClick={() => approveApplication(app)} disabled={appActioning === app.id}
+                            style={{ ...btnSuccess, padding: '8px 18px', fontSize: 13, opacity: appActioning === app.id ? 0.6 : 1 }}>
+                            {appActioning === app.id ? 'Processing...' : '✓ Approve & Invite'}
+                          </button>
+                          <button onClick={() => rejectApplication(app.id)} disabled={appActioning === app.id}
+                            style={{ ...btnDanger, padding: '8px 18px', fontSize: 13, opacity: appActioning === app.id ? 0.6 : 1 }}>
+                            ✕ Reject
+                          </button>
+                          {!appNotes[app.id] && (
+                            <span style={{ fontSize: 12, color: '#aaa', fontStyle: 'italic' }}>Add a note above to include a message with your decision</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Post-action status */}
+                      {app.status === 'approved' && (
+                        <div style={{ borderTop: '1px solid #f0e8dc', paddingTop: 12, marginTop: 4 }}>
+                          <p style={{ fontSize: 12, color: '#2e7d32', margin: 0, fontStyle: 'italic' }}>
+                            ✓ Approved — invite email sent if no existing account, role updated if account existed
+                          </p>
+                          {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Note recorded: {app.admin_note}</p>}
+                        </div>
+                      )}
+                      {app.status === 'rejected' && (
+                        <div style={{ borderTop: '1px solid #f0e8dc', paddingTop: 12, marginTop: 4 }}>
+                          <p style={{ fontSize: 12, color: '#b71c1c', margin: 0, fontStyle: 'italic' }}>✕ Rejected</p>
+                          {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Reason recorded: {app.admin_note}</p>}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1264,8 +1286,6 @@ export default function AdminPage() {
                 <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: 0 }}>Timeline Management</h1>
                 <button onClick={() => timelineTab === 'pending' ? fetchSection('timeline') : fetchLiveTimeline()} style={btnPrimary}>Refresh</button>
               </div>
-
-              {/* Tabs */}
               <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e8ddd0', marginBottom: 24 }}>
                 {([
                   { key: 'pending', label: `⏳ Pending${timelineEntries.length > 0 ? ` (${timelineEntries.length})` : ''}` },
@@ -1278,7 +1298,6 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {/* ── PENDING TAB ── */}
               {timelineTab === 'pending' && (
                 timelineLoading ? (
                   <div style={{ textAlign: 'center', padding: '60px 0', color: '#8b5e2a' }}>Loading...</div>
@@ -1292,9 +1311,7 @@ export default function AdminPage() {
                     {timelineEntries.map(entry => {
                       const isEditing = timelineEditId === entry.id
                       const isMerging = timelineMergeId === entry.id
-                      const targetName = entry.cigar_id
-                        ? (entry.cigars as any)?.name || 'Unknown cigar'
-                        : (entry.brand_accounts as any)?.name || 'Unknown brand'
+                      const targetName = entry.cigar_id ? (entry.cigars as any)?.name || 'Unknown cigar' : (entry.brand_accounts as any)?.name || 'Unknown brand'
                       return (
                         <div key={entry.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -1320,16 +1337,14 @@ export default function AdminPage() {
                           {isEditing && (
                             <div style={{ borderTop: '1px solid #e8ddd0', marginTop: 12, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                               <p style={{ fontSize: 12, fontWeight: 600, color: '#8b5e2a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Edit Entry</p>
-                              <div>
-                                <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Event Type</label>
+                              <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Event Type</label>
                                 <select value={timelineEditForm.event_type} onChange={e => setTimelineEditForm(p => ({ ...p, event_type: e.target.value }))} style={inputStyle}>
                                   {['release', 'discontinued', 'blend_change', 'name_change', 'size_change', 'award', 'price_change', 'note'].map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                                 </select>
                               </div>
                               <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 10 }}>
                                 <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Year</label><input type="number" value={timelineEditForm.year} onChange={e => setTimelineEditForm(p => ({ ...p, year: e.target.value }))} placeholder="e.g. 2015" style={inputStyle} /></div>
-                                <div>
-                                  <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Month (optional)</label>
+                                <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Month (optional)</label>
                                   <select value={timelineEditForm.month} onChange={e => setTimelineEditForm(p => ({ ...p, month: e.target.value }))} style={inputStyle}>
                                     <option value="">—</option>
                                     {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => <option key={m} value={m}>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]}</option>)}
@@ -1414,10 +1429,8 @@ export default function AdminPage() {
                 )
               )}
 
-              {/* ── LIVE TAB ── */}
               {timelineTab === 'live' && (
                 <div>
-                  {/* Duplicate finder */}
                   <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: dupesFound.length > 0 ? 16 : 0 }}>
                       <div>
@@ -1430,10 +1443,7 @@ export default function AdminPage() {
                       <button onClick={findTimelineDuplicates} disabled={dupesLoading} style={btnWarning}>{dupesLoading ? 'Scanning...' : 'Find Duplicates'}</button>
                     </div>
                     {dupesFound.length === 0 && !dupesLoading && (
-                      <p style={{ fontSize: 13, color: '#aaa', margin: '8px 0 0' }}>
-                        Click Find Duplicates to scan all live entries.
-                        {dismissedDupeKeys.size > 0 && ' Dismissed groups are excluded.'}
-                      </p>
+                      <p style={{ fontSize: 13, color: '#aaa', margin: '8px 0 0' }}>Click Find Duplicates to scan all live entries.{dismissedDupeKeys.size > 0 && ' Dismissed groups are excluded.'}</p>
                     )}
                     {dupesFound.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
@@ -1445,13 +1455,8 @@ export default function AdminPage() {
                           return (
                             <div key={gi} style={{ background: '#fbe9e7', borderRadius: 8, border: '1px solid #f5c6c6', padding: 16 }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <p style={{ fontSize: 12, fontWeight: 600, color: '#b71c1c', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                  {targetName} — {g0.event_type.replace('_', ' ')} · {g0.event_date?.split('T')[0]}
-                                </p>
-                                <button onClick={() => dismissDupeGroup(dupeKey)}
-                                  style={{ background: '#f5f0e8', border: '1px solid #d4b896', borderRadius: 6, padding: '4px 12px', fontSize: 12, color: '#8b5e2a', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' as const }}>
-                                  Dismiss group
-                                </button>
+                                <p style={{ fontSize: 12, fontWeight: 600, color: '#b71c1c', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{targetName} — {g0.event_type.replace('_', ' ')} · {g0.event_date?.split('T')[0]}</p>
+                                <button onClick={() => dismissDupeGroup(dupeKey)} style={{ background: '#f5f0e8', border: '1px solid #d4b896', borderRadius: 6, padding: '4px 12px', fontSize: 12, color: '#8b5e2a', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' as const }}>Dismiss group</button>
                               </div>
                               {group.map((entry: any, ei: number) => (
                                 <div key={entry.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#fff', borderRadius: 6, marginBottom: ei < group.length - 1 ? 8 : 0, border: '1px solid #e8ddd0' }}>
@@ -1477,7 +1482,6 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  {/* Search + list */}
                   <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
                     <input placeholder="Search by cigar, brand, or title..." value={liveSearch} onChange={e => setLiveSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 340 }} />
                     <span style={{ fontSize: 13, color: '#8b5e2a' }}>
@@ -1520,21 +1524,17 @@ export default function AdminPage() {
                                   </div>
                                 )}
                               </div>
-                              {!isEditing && entry.body && (
-                                <p style={{ fontSize: 13, color: '#5a3a1a', margin: '10px 0 0', lineHeight: 1.6, background: '#faf8f5', padding: '8px 12px', borderRadius: 6 }}>{entry.body}</p>
-                              )}
+                              {!isEditing && entry.body && <p style={{ fontSize: 13, color: '#5a3a1a', margin: '10px 0 0', lineHeight: 1.6, background: '#faf8f5', padding: '8px 12px', borderRadius: 6 }}>{entry.body}</p>}
                               {isEditing && (
                                 <div style={{ borderTop: '1px solid #e8ddd0', marginTop: 14, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                  <div>
-                                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Event Type</label>
+                                  <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Event Type</label>
                                     <select value={liveEditForm.event_type} onChange={e => setLiveEditForm(p => ({ ...p, event_type: e.target.value }))} style={inputStyle}>
                                       {['release', 'discontinued', 'blend_change', 'name_change', 'size_change', 'award', 'price_change', 'note'].map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                                     </select>
                                   </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 10 }}>
                                     <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Year</label><input type="number" value={liveEditForm.year} onChange={e => setLiveEditForm(p => ({ ...p, year: e.target.value }))} style={inputStyle} /></div>
-                                    <div>
-                                      <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Month</label>
+                                    <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Month</label>
                                       <select value={liveEditForm.month} onChange={e => setLiveEditForm(p => ({ ...p, month: e.target.value }))} style={inputStyle}>
                                         <option value="">—</option>
                                         {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => <option key={m} value={m}>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]}</option>)}
