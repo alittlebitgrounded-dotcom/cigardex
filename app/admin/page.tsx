@@ -9,6 +9,7 @@ type IndustryApplication = {
   id: string; name: string; email: string; company: string; role_type: string
   phone: string | null; website: string | null; message: string | null
   status: string; admin_note: string | null; created_at: string
+  _matched?: boolean
 }
 
 type FeedbackItem = {
@@ -113,7 +114,6 @@ export default function AdminPage() {
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([])
   const [feedbackNotes, setFeedbackNotes] = useState<Record<string, string>>({})
 
-  // Timeline — pending
   const [timelineEntries, setTimelineEntries] = useState<any[]>([])
   const [timelineEditId, setTimelineEditId] = useState<string | null>(null)
   const [timelineEditForm, setTimelineEditForm] = useState<Record<string, string>>({})
@@ -124,7 +124,6 @@ export default function AdminPage() {
   const [timelineSaving, setTimelineSaving] = useState(false)
   const [timelineLoading, setTimelineLoading] = useState(false)
 
-  // Timeline — live + dupes
   const [timelineTab, setTimelineTab] = useState<'pending' | 'live'>('pending')
   const [liveEntries, setLiveEntries] = useState<any[]>([])
   const [liveLoading, setLiveLoading] = useState(false)
@@ -282,7 +281,15 @@ export default function AdminPage() {
   }
   async function fetchApplications() {
     const { data } = await supabase.from('industry_applications').select('*').order('created_at', { ascending: false })
-    if (data) setApplications(data)
+    if (data) {
+      const emails = data.map((a: any) => a.email).filter(Boolean)
+      let matchedEmails = new Set<string>()
+      if (emails.length > 0) {
+        const { data: matched } = await supabase.from('users').select('email').in('email', emails)
+        if (matched) matchedEmails = new Set(matched.map((u: any) => u.email))
+      }
+      setApplications(data.map((a: any) => ({ ...a, _matched: matchedEmails.has(a.email) })))
+    }
   }
   async function approveApplication(app: IndustryApplication) {
     const note = appNotes[app.id] || ''
@@ -291,23 +298,20 @@ export default function AdminPage() {
       const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
       if (userRow) {
         const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : 'premium'
-        await supabase.from('users').update({ role: newRole }).eq('id', userRow.id)
-      } else {
+      await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
+    } else {
         const { data: { session } } = await supabase.auth.getSession()
-const res = await fetch('/api/invite', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${session?.access_token}`,
-  },
-  body: JSON.stringify({ email: app.email, role_type: app.role_type, company: app.company }),
-})
-if (!res.ok) {
-  const err = await res.json()
-  setMsg(`Invite failed: ${err.error}`)
-  setAppActioning(null)
-  return
-}
+        const res = await fetch('/api/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ email: app.email, role_type: app.role_type, company: app.company }),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          setMsg(`Invite failed: ${err.error}`)
+          setAppActioning(null)
+          return
+        }
       }
       await supabase.from('industry_applications').update({ status: 'approved', admin_note: note || null }).eq('id', app.id)
       setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved', admin_note: note || null } : a))
@@ -1098,29 +1102,30 @@ if (!res.ok) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {applications.map(app => (
                     <div key={app.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: 0 }}>{app.name}</h3>
-                            <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: app.status === 'approved' ? '#e8f5e9' : app.status === 'rejected' ? '#fbe9e7' : '#fff3e0', color: app.status === 'approved' ? '#2e7d32' : app.status === 'rejected' ? '#b71c1c' : '#e65100' }}>{app.status}</span>
-                          </div>
-                          <p style={{ fontSize: 14, color: '#1a0a00', fontWeight: 600, margin: '0 0 2px' }}>{app.company}</p>
-                          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <p style={{ fontSize: 13, color: '#8b5e2a', margin: 0 }}>{app.email}{app.phone ? ` · ${app.phone}` : ''}</p>
-                            <a href={`mailto:${app.email}`} style={{ fontSize: 12, color: '#c4a96a', textDecoration: 'none', fontWeight: 500 }}>✉ Email applicant</a>
-                          </div>
-                          <p style={{ fontSize: 12, color: '#aaa', margin: '2px 0 0' }}>{new Date(app.created_at).toLocaleDateString()} · {app.role_type}</p>
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: 0 }}>{app.name}</h3>
+                          <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: app.status === 'approved' ? '#e8f5e9' : app.status === 'rejected' ? '#fbe9e7' : '#fff3e0', color: app.status === 'approved' ? '#2e7d32' : app.status === 'rejected' ? '#b71c1c' : '#e65100' }}>{app.status}</span>
                         </div>
+                        <p style={{ fontSize: 14, color: '#1a0a00', fontWeight: 600, margin: '0 0 4px' }}>{app.company}</p>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, color: '#8b5e2a' }}>{app.email}{app.phone ? ` · ${app.phone}` : ''}</span>
+                          <a href={`mailto:${app.email}`} style={{ fontSize: 12, color: '#c4a96a', textDecoration: 'none', fontWeight: 500 }}>✉ Email applicant</a>
+                          {app._matched !== undefined && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: app._matched ? '#e8f5e9' : '#fff3e0', color: app._matched ? '#2e7d32' : '#e65100' }}>
+                              {app._matched ? '✓ Account exists — approve will upgrade role instantly' : '⚠ No account yet — ask them to sign up first'}
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{new Date(app.created_at).toLocaleDateString()} · {app.role_type}</p>
                       </div>
 
-                      {/* Application details */}
                       <div style={{ background: '#f5f0e8', borderRadius: 6, padding: 12, display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
                         {app.website && <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>WEBSITE</span><a href={app.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#1a0a00' }}>{app.website}</a></div>}
                         <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>ROLE</span><span style={{ fontSize: 13, color: '#1a0a00', fontWeight: 500 }}>{app.role_type}</span></div>
                         {app.message && <div style={{ flex: 1 }}><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>MESSAGE</span><span style={{ fontSize: 13, color: '#1a0a00' }}>{app.message}</span></div>}
                       </div>
 
-                      {/* Admin note */}
                       {app.status === 'pending' && (
                         <div style={{ marginBottom: 14 }}>
                           <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
@@ -1136,29 +1141,27 @@ if (!res.ok) {
                         </div>
                       )}
 
-                      {/* Actions */}
                       {app.status === 'pending' && (
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <button onClick={() => approveApplication(app)} disabled={appActioning === app.id}
-                            style={{ ...btnSuccess, padding: '8px 18px', fontSize: 13, opacity: appActioning === app.id ? 0.6 : 1 }}>
-                            {appActioning === app.id ? 'Processing...' : '✓ Approve & Invite'}
+                          <button onClick={() => approveApplication(app)} disabled={appActioning === app.id || !app._matched}
+                            style={{ ...btnSuccess, padding: '8px 18px', fontSize: 13, opacity: (appActioning === app.id || !app._matched) ? 0.5 : 1, cursor: !app._matched ? 'not-allowed' : 'pointer' }}>
+                            {appActioning === app.id ? 'Processing...' : '✓ Approve'}
                           </button>
                           <button onClick={() => rejectApplication(app.id)} disabled={appActioning === app.id}
                             style={{ ...btnDanger, padding: '8px 18px', fontSize: 13, opacity: appActioning === app.id ? 0.6 : 1 }}>
                             ✕ Reject
                           </button>
-                          {!appNotes[app.id] && (
-                            <span style={{ fontSize: 12, color: '#aaa', fontStyle: 'italic' }}>Add a note above to include a message with your decision</span>
+                          {!app._matched && (
+                            <span style={{ fontSize: 12, color: '#e65100', fontStyle: 'italic' }}>
+                              No account found — email them to sign up at cigardex.app before approving
+                            </span>
                           )}
                         </div>
                       )}
 
-                      {/* Post-action status */}
                       {app.status === 'approved' && (
                         <div style={{ borderTop: '1px solid #f0e8dc', paddingTop: 12, marginTop: 4 }}>
-                          <p style={{ fontSize: 12, color: '#2e7d32', margin: 0, fontStyle: 'italic' }}>
-                            ✓ Approved — invite email sent if no existing account, role updated if account existed
-                          </p>
+                          <p style={{ fontSize: 12, color: '#2e7d32', margin: 0, fontStyle: 'italic' }}>✓ Approved — role updated on existing account</p>
                           {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Note recorded: {app.admin_note}</p>}
                         </div>
                       )}

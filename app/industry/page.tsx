@@ -9,7 +9,7 @@ import Link from 'next/link'
 const STORE_HONORS = [
   'PCA Member',
   'TAA Member',
-    'Drew Diplomat',
+  'Drew Diplomat',
   'Davidoff White Label',
   'Opus X Authorized Retailer',
 ]
@@ -25,7 +25,6 @@ const ROLES = [
       'Verified badge on your profile and all reviews',
       'Reviews marked as "Industry Review" — distinguished from consumer ratings',
       'Link to your full review, channel, or publication on every review card',
-     
     ],
     cta: 'Reviewers must have an established publication, channel, or blog with a track record of cigar content.',
   },
@@ -40,7 +39,6 @@ const ROLES = [
       'Public contact info — address, phone, hours, website',
       'Inventory listing so enthusiasts can find cigars near them',
       'Industry honor designations (Drew Diplomat, PCA Member, etc.)',
-    
     ],
     cta: 'Must be a licensed retailer with a physical storefront or established online shop.',
   },
@@ -55,7 +53,6 @@ const ROLES = [
       'Edit your brand\'s About section directly',
       'Submit timeline entries that go live without community review',
       'Direct contact info visible on your brand page',
-
     ],
     cta: 'Must be an authorized representative of the brand — owner, employee, or official PR contact.',
   },
@@ -67,19 +64,12 @@ function RoleCard({ role, selected, onSelect }: {
   onSelect: () => void
 }) {
   return (
-    <div
-      onClick={onSelect}
-      style={{
-        background: selected ? '#1a0a00' : '#fff',
-        border: selected ? '2px solid #c4a96a' : '2px solid #e8ddd0',
-        borderRadius: 14,
-        padding: 28,
-        cursor: 'pointer',
-        transition: 'all 0.18s ease',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
+    <div onClick={onSelect} style={{
+      background: selected ? '#1a0a00' : '#fff',
+      border: selected ? '2px solid #c4a96a' : '2px solid #e8ddd0',
+      borderRadius: 14, padding: 28, cursor: 'pointer',
+      transition: 'all 0.18s ease', position: 'relative', overflow: 'hidden',
+    }}>
       {selected && (
         <div style={{
           position: 'absolute', top: 14, right: 14,
@@ -89,23 +79,10 @@ function RoleCard({ role, selected, onSelect }: {
           fontSize: 12, color: '#1a0a00', fontWeight: 700,
         }}>✓</div>
       )}
-
       <div style={{ fontSize: 32, marginBottom: 10 }}>{role.icon}</div>
-      <h3 style={{
-        fontSize: 17, fontWeight: 700, margin: '0 0 4px',
-        color: selected ? '#f5e6c8' : '#1a0a00',
-        fontFamily: 'Georgia, serif',
-      }}>{role.label}</h3>
-      <p style={{
-        fontSize: 13, fontWeight: 600, margin: '0 0 8px',
-        color: selected ? '#c4a96a' : '#8b5e2a',
-        fontStyle: 'italic',
-      }}>{role.tagline}</p>
-      <p style={{
-        fontSize: 13, color: selected ? '#c4a96a' : '#5a3a1a',
-        margin: '0 0 16px', lineHeight: 1.6,
-      }}>{role.description}</p>
-
+      <h3 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 4px', color: selected ? '#f5e6c8' : '#1a0a00', fontFamily: 'Georgia, serif' }}>{role.label}</h3>
+      <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 8px', color: selected ? '#c4a96a' : '#8b5e2a', fontStyle: 'italic' }}>{role.tagline}</p>
+      <p style={{ fontSize: 13, color: selected ? '#c4a96a' : '#5a3a1a', margin: '0 0 16px', lineHeight: 1.6 }}>{role.description}</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {role.perks.map(perk => (
           <div key={perk} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -114,13 +91,8 @@ function RoleCard({ role, selected, onSelect }: {
           </div>
         ))}
       </div>
-
       {selected && (
-        <div style={{
-          marginTop: 16, paddingTop: 14,
-          borderTop: '1px solid rgba(196,169,106,0.3)',
-          fontSize: 12, color: '#a08050', fontStyle: 'italic', lineHeight: 1.6,
-        }}>
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(196,169,106,0.3)', fontSize: 12, color: '#a08050', fontStyle: 'italic', lineHeight: 1.6 }}>
           📋 {role.cta}
         </div>
       )}
@@ -152,7 +124,7 @@ export default function IndustryPage() {
   }
 
   function isPersonalEmail(email: string) {
-    const personal = ['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','aol.com','protonmail.com','me.com']
+    const personal = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'protonmail.com', 'me.com']
     return personal.includes(email.split('@')[1]?.toLowerCase())
   }
 
@@ -204,7 +176,6 @@ export default function IndustryPage() {
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
       <Header />
 
-      {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '56px 32px 48px', textAlign: 'center' }}>
         <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: '#c4a96a', textTransform: 'uppercase', marginBottom: 14 }}>
           Industry Membership — Free
@@ -244,9 +215,7 @@ export default function IndustryPage() {
               display: 'inline-block', background: '#1a0a00', color: '#f5e6c8',
               padding: '13px 32px', borderRadius: 9, textDecoration: 'none',
               fontSize: 15, fontWeight: 600,
-            }}>
-              Back to CigarDex
-            </a>
+            }}>Back to CigarDex</a>
           </div>
         ) : (
           <div>
@@ -255,59 +224,35 @@ export default function IndustryPage() {
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: '20px 24px', marginBottom: 32, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>💡</span>
               <div>
-                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 14, color: '#1a0a00' }}>
-                  Not sure if this is for you?
-                </p>
+                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 14, color: '#1a0a00' }}>Not sure if this is for you?</p>
                 <p style={{ margin: 0, fontSize: 13, color: '#5a3a1a', lineHeight: 1.7 }}>
                   Industry accounts are for people who work in the cigar trade — reviewers, retailers, and brand reps.
                   If you're a cigar enthusiast who wants to log smokes and rate cigars,{' '}
-                  <Link href="/" style={{ color: '#8b5e2a', fontWeight: 600, textDecoration: 'underline' }}>
-                    a regular account is all you need
-                  </Link>
-                  . Industry accounts are publicly visible and verified — they're not a premium tier, they're a different tool.
+                  <Link href="/" style={{ color: '#8b5e2a', fontWeight: 600, textDecoration: 'underline' }}>a regular account is all you need</Link>.
+                  Industry accounts are publicly visible and verified — they're not a premium tier, they're a different tool.
                 </p>
               </div>
             </div>
 
-            {/* Step 1 — Pick your role */}
+            {/* Step 1 */}
             <div style={{ marginBottom: 40 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: '#1a0a00', color: '#c4a96a',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, fontWeight: 700, flexShrink: 0,
-                }}>1</div>
-                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>
-                  Which role fits you?
-                </h2>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a0a00', color: '#c4a96a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>1</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>Which role fits you?</h2>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
                 {ROLES.map(role => (
-                  <RoleCard
-                    key={role.value}
-                    role={role}
-                    selected={selectedRole === role.value}
-                    onSelect={() => { setSelectedRole(role.value); setShowForm(true) }}
-                  />
+                  <RoleCard key={role.value} role={role} selected={selectedRole === role.value} onSelect={() => { setSelectedRole(role.value); setShowForm(true) }} />
                 ))}
               </div>
             </div>
 
-            {/* Step 2 — Application form */}
+            {/* Step 2 */}
             {showForm && selectedRole && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: '#1a0a00', color: '#c4a96a',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700, flexShrink: 0,
-                  }}>2</div>
-                  <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>
-                    Tell us about yourself
-                  </h2>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a0a00', color: '#c4a96a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>2</div>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>Tell us about yourself</h2>
                 </div>
 
                 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e8ddd0', padding: 32, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -321,6 +266,9 @@ export default function IndustryPage() {
                       <div>
                         <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>Professional Email *</label>
                         <input type="email" value={form.email} onChange={field('email')} placeholder="you@yourcompany.com" style={inputStyle} />
+                        <p style={{ fontSize: 11, color: '#b71c1c', margin: '6px 0 0', lineHeight: 1.5, fontWeight: 500 }}>
+                          ⚠️ Use the professional email you want on your CigarDex account. This email is tied to your approval and <strong>cannot be changed afterwards</strong> without contacting us.
+                        </p>
                       </div>
                     </div>
 
@@ -338,7 +286,6 @@ export default function IndustryPage() {
                       <input value={form.website} onChange={field('website')} placeholder="https://..." style={inputStyle} />
                     </div>
 
-                    {/* Reviewer-specific: social/publication link */}
                     {selectedRole === 'reviewer' && (
                       <div>
                         <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
@@ -348,7 +295,6 @@ export default function IndustryPage() {
                       </div>
                     )}
 
-                    {/* Retailer-specific: honors */}
                     {selectedRole === 'retailer' && (
                       <div>
                         <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
@@ -361,18 +307,14 @@ export default function IndustryPage() {
                           {STORE_HONORS.map(honor => {
                             const active = selectedHonors.includes(honor)
                             return (
-                              <button
-                                key={honor}
-                                onClick={() => toggleHonor(honor)}
-                                style={{
-                                  padding: '6px 14px', borderRadius: 20, fontSize: 13,
-                                  cursor: 'pointer', fontWeight: active ? 700 : 400,
-                                  border: active ? '2px solid #1a0a00' : '1px solid #d4b896',
-                                  background: active ? '#f5f0e8' : '#fff',
-                                  color: active ? '#1a0a00' : '#5a3a1a',
-                                  transition: 'all 0.12s',
-                                }}
-                              >
+                              <button key={honor} onClick={() => toggleHonor(honor)} style={{
+                                padding: '6px 14px', borderRadius: 20, fontSize: 13,
+                                cursor: 'pointer', fontWeight: active ? 700 : 400,
+                                border: active ? '2px solid #1a0a00' : '1px solid #d4b896',
+                                background: active ? '#f5f0e8' : '#fff',
+                                color: active ? '#1a0a00' : '#5a3a1a',
+                                transition: 'all 0.12s',
+                              }}>
                                 {active ? '✓ ' : ''}{honor}
                               </button>
                             )
@@ -412,16 +354,12 @@ export default function IndustryPage() {
                       </div>
                     )}
 
-                    <button
-                      onClick={handleSubmit}
-                      disabled={submitting}
-                      style={{
-                        background: '#1a0a00', color: '#f5e6c8', border: 'none',
-                        borderRadius: 9, padding: '14px 0', fontSize: 15, fontWeight: 700,
-                        cursor: submitting ? 'not-allowed' : 'pointer',
-                        opacity: submitting ? 0.7 : 1, letterSpacing: '0.02em',
-                      }}
-                    >
+                    <button onClick={handleSubmit} disabled={submitting} style={{
+                      background: '#1a0a00', color: '#f5e6c8', border: 'none',
+                      borderRadius: 9, padding: '14px 0', fontSize: 15, fontWeight: 700,
+                      cursor: submitting ? 'not-allowed' : 'pointer',
+                      opacity: submitting ? 0.7 : 1, letterSpacing: '0.02em',
+                    }}>
                       {submitting ? 'Submitting...' : 'Submit Application'}
                     </button>
                   </div>
