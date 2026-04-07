@@ -149,9 +149,10 @@ export default function IndustryPage() {
       company: form.company,
       role_type: selectedRole,
       website: form.website || null,
+      // Store designations as a proper array — not in message field
+      designations: selectedHonors.length > 0 ? selectedHonors : null,
       message: [
         form.message,
-        selectedHonors.length > 0 ? `Store honors: ${selectedHonors.join(', ')}` : '',
         form.social ? `Social/publication: ${form.social}` : '',
       ].filter(Boolean).join('\n\n') || null,
       status: 'pending',
@@ -187,8 +188,8 @@ export default function IndustryPage() {
           We're building the most complete cigar database on the internet. Industry members get verified status, direct platform access, and tools built around how you actually work.
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          {['Always free', 'Verified badge', 'Role-specific tools', 'No hidden fees'].map(tag => (
-            <span key={tag} style={{
+    {['Verified badge', 'Role-specific tools', 'Direct platform access'].map(tag => (
+              <span key={tag} style={{
               background: 'rgba(196,169,106,0.15)', border: '1px solid rgba(196,169,106,0.4)',
               color: '#c4a96a', fontSize: 12, fontWeight: 600,
               padding: '5px 14px', borderRadius: 20, letterSpacing: '0.04em',
@@ -220,7 +221,6 @@ export default function IndustryPage() {
         ) : (
           <div>
 
-            {/* Why not section */}
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: '20px 24px', marginBottom: 32, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>💡</span>
               <div>
@@ -301,7 +301,7 @@ export default function IndustryPage() {
                           Industry Honors & Designations <span style={{ color: '#bbb', fontWeight: 400 }}>(select all that apply)</span>
                         </label>
                         <p style={{ fontSize: 12, color: '#aaa', margin: '0 0 10px', fontStyle: 'italic' }}>
-                          These will be shown on your store profile after verification.
+                          These will be shown on your store profile after verification. You can manage them from your dashboard after approval.
                         </p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {STORE_HONORS.map(honor => {
@@ -321,7 +321,7 @@ export default function IndustryPage() {
                           })}
                         </div>
                         <p style={{ fontSize: 11, color: '#bbb', margin: '8px 0 0', fontStyle: 'italic' }}>
-                          Don't see yours? Add it in the message below.
+                          Don't see yours? Add it in the message below — or from your dashboard after approval.
                         </p>
                       </div>
                     )}

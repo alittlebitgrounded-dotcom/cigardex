@@ -5,11 +5,20 @@ import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
 import type { User } from '@supabase/supabase-js'
 
+const INDUSTRY_ROLES = ['store', 'brand', 'reviewer']
+
+const ROLE_LABELS: Record<string, string> = {
+  store: 'Tobacconist',
+  brand: 'Brand Representative',
+  reviewer: 'Reviewer',
+}
+
 export default function Header() {
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<{ username: string; role: string } | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
+  const [showRoleBanner, setShowRoleBanner] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -29,7 +38,18 @@ export default function Header() {
 
   async function fetchProfile(userId: string) {
     const { data } = await supabase.from('users').select('username, role').eq('id', userId).maybeSingle()
-    if (data) setUserProfile(data)
+    if (data) {
+      setUserProfile(data)
+      if (INDUSTRY_ROLES.includes(data.role)) {
+        const dismissed = sessionStorage.getItem(`role_banner_dismissed_${userId}`)
+        if (!dismissed) setShowRoleBanner(true)
+      }
+    }
+  }
+
+  function dismissBanner() {
+    if (user) sessionStorage.setItem(`role_banner_dismissed_${user.id}`, 'true')
+    setShowRoleBanner(false)
   }
 
   async function handleSignOut() {
@@ -37,13 +57,45 @@ export default function Header() {
     setShowUserMenu(false)
   }
 
+  const isIndustry = userProfile && INDUSTRY_ROLES.includes(userProfile.role)
+
   return (
     <>
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+
+      {/* Role upgrade banner */}
+      {showRoleBanner && isIndustry && (
+        <div style={{
+          background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)',
+          borderBottom: '2px solid #c4a96a',
+          padding: '10px 32px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          position: 'sticky', top: 0, zIndex: 101,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 20 }}>🍂</span>
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#f5e6c8' }}>
+                Your industry membership is active — welcome, {ROLE_LABELS[userProfile.role] || userProfile.role}
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: '#c4a96a' }}>
+                Your account has been verified. Visit your{' '}
+                <a href="/pro" style={{ color: '#c4a96a', fontWeight: 700, textDecoration: 'underline' }}>member dashboard</a>
+                {' '}to see your tools and benefits.
+              </p>
+            </div>
+          </div>
+          <button onClick={dismissBanner} style={{
+            background: 'none', border: 'none', color: '#8b5e2a',
+            fontSize: 22, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0,
+          }}>×</button>
+        </div>
+      )}
+
       <header style={{
         background: '#1a0a00', padding: '0 32px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: 64, position: 'sticky', top: 0, zIndex: 100,
+        height: 64, position: 'sticky', top: showRoleBanner ? 45 : 0, zIndex: 100,
         boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -54,6 +106,9 @@ export default function Header() {
           <a href="/" style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>Browse</a>
           <a href="/brands" style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>Brands</a>
           {user && <a href="/humidor" style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>My Humidor</a>}
+          {isIndustry && (
+            <a href="/pro" style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>My Dashboard</a>
+          )}
           {(userProfile?.role === 'super_admin' || userProfile?.role === 'moderator') && (
             <a href="/admin" style={{ color: '#1a0a00', fontSize: 14, textDecoration: 'none', fontWeight: 600, background: '#c4a96a', padding: '5px 14px', borderRadius: 20 }}>Admin</a>
           )}
@@ -71,6 +126,11 @@ export default function Header() {
                 {userProfile?.role === 'super_admin' && (
                   <span style={{ fontSize: 10, background: '#c4a96a', color: '#1a0a00', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>ADMIN</span>
                 )}
+                {isIndustry && (
+                  <span style={{ fontSize: 10, background: 'rgba(196,169,106,0.2)', color: '#c4a96a', padding: '1px 6px', borderRadius: 3, fontWeight: 700, border: '1px solid rgba(196,169,106,0.4)' }}>
+                    {userProfile.role === 'store' ? '🏪' : userProfile.role === 'brand' ? '🍂' : '✍️'}
+                  </span>
+                )}
               </button>
               {showUserMenu && (
                 <div style={{
@@ -81,13 +141,19 @@ export default function Header() {
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0e8dc' }}>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1a0a00' }}>{userProfile?.username}</p>
                     <p style={{ margin: 0, fontSize: 12, color: '#8b5e2a' }}>{user.email}</p>
+                    {isIndustry && (
+                      <p style={{ margin: '4px 0 0', fontSize: 11, color: '#c4a96a', fontWeight: 600 }}>
+                        ✓ {ROLE_LABELS[userProfile.role]} — Verified
+                      </p>
+                    )}
                   </div>
                   <a href={`/profile/${userProfile?.username}`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Profile</a>
                   <a href="/humidor" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Humidor</a>
                   <a href="/wishlist" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Wishlist</a>
-                  <a href={`/profile/${userProfile?.username}?tab=reviews`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>
-                    My Reviews
-                  </a>
+                  <a href={`/profile/${userProfile?.username}?tab=reviews`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Reviews</a>
+                  {isIndustry && (
+                    <a href="/pro" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none', borderTop: '1px solid #f0e8dc' }}>My Dashboard</a>
+                  )}
                   {(userProfile?.role === 'super_admin' || userProfile?.role === 'moderator') && (
                     <a href="/admin" style={{ display: 'block', padding: '10px 16px', borderTop: '1px solid #f0e8dc', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>Admin Panel</a>
                   )}

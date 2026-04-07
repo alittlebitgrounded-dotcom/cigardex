@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-type Section = 'cigars' | 'brands' | 'users' | 'moderation' | 'characteristics' | 'stores' | 'reviews' | 'applications' | 'feedback' | 'timeline'
+type Section = 'cigars' | 'brands' | 'users' | 'moderation' | 'characteristics' | 'stores' | 'reviews' | 'applications' | 'feedback' | 'timeline' | 'awards'
+
 type IndustryApplication = {
   id: string; name: string; email: string; company: string; role_type: string
   phone: string | null; website: string | null; message: string | null
   status: string; admin_note: string | null; created_at: string
+  designations: string[] | null
   _matched?: boolean
 }
 
@@ -61,6 +63,10 @@ type Store = {
 type CigarEdit = {
   id: string; status: string; changes: Record<string, unknown>; created_at: string
   cigars: { name: string } | null; users: { username: string } | null
+}
+
+type GlobalAward = {
+  id: string; name: string; description: string | null; show_in_list: boolean
 }
 
 const ROLES = ['registered', 'premium', 'brand', 'store', 'moderator', 'super_admin']
@@ -145,6 +151,12 @@ export default function AdminPage() {
   const [reviewCigarFilter, setReviewCigarFilter] = useState('')
   const [reviewsLoading, setReviewsLoading] = useState(false)
 
+  const [globalAwards, setGlobalAwards] = useState<GlobalAward[]>([])
+  const [pendingAwards, setPendingAwards] = useState<any[]>([])
+  const [newAwardName, setNewAwardName] = useState('')
+  const [newAwardDescription, setNewAwardDescription] = useState('')
+  const [awardMsg, setAwardMsg] = useState('')
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (isAdmin) fetchSection(section) }, [section, isAdmin])
 
@@ -196,6 +208,7 @@ export default function AdminPage() {
     if (s === 'applications') await fetchApplications()
     if (s === 'feedback') await fetchFeedback()
     if (s === 'timeline') await fetchTimeline()
+    if (s === 'awards') await fetchAwards()
     setLoading(false)
   }
 
@@ -205,7 +218,7 @@ export default function AdminPage() {
     logAction('update_cigar_status', 'cigar', id, `Set to ${status}`)
   }
   async function updateUserRole(id: string, role: string) {
-    await supabase.from('users').update({ role }).eq('id', id)
+    await supabase.rpc('update_user_role', { user_id: id, new_role: role })
     setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
     logAction('update_user_role', 'user', id, `Set role to ${role}`)
   }
@@ -298,19 +311,26 @@ export default function AdminPage() {
       const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
       if (userRow) {
         const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : 'premium'
-      await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
-    } else {
-        const { data: { session } } = await supabase.auth.getSession()
-        const res = await fetch('/api/invite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-          body: JSON.stringify({ email: app.email, role_type: app.role_type, company: app.company }),
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          setMsg(`Invite failed: ${err.error}`)
-          setAppActioning(null)
-          return
+        await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
+        if (app.role_type === 'retailer') {
+          const { data: existingAccount } = await supabase.from('store_accounts').select('id').eq('user_id', userRow.id).maybeSingle()
+          let storeId: string | null = null
+          if (!existingAccount) {
+            const { data: newAccount } = await supabase.from('store_accounts').insert({ user_id: userRow.id, company_name: app.company, suspended: false, tier: 'free' }).select('id').single()
+            if (newAccount) {
+              const { data: newStore } = await supabase.from('stores').insert({ store_account_id: newAccount.id, name: app.company, type: 'brick_and_mortar', active: true }).select('id').single()
+              if (newStore) storeId = newStore.id
+            }
+          } else {
+            const { data: existingStore } = await supabase.from('stores').select('id').eq('store_account_id', existingAccount.id).maybeSingle()
+            if (existingStore) storeId = existingStore.id
+          }
+          if (storeId && app.designations && app.designations.length > 0) {
+            for (const name of app.designations) {
+              const { data: match } = await supabase.from('retailer_designations').select('id').ilike('name', name).maybeSingle()
+              await supabase.from('store_designations').insert({ store_id: storeId, designation_id: match?.id || null, custom_name: match ? null : name, verified: true, status: 'approved' })
+            }
+          }
         }
       }
       await supabase.from('industry_applications').update({ status: 'approved', admin_note: note || null }).eq('id', app.id)
@@ -332,11 +352,7 @@ export default function AdminPage() {
   }
   async function fetchTimeline() {
     setTimelineLoading(true)
-    const { data } = await supabase
-      .from('cigar_timeline')
-      .select('id, cigar_id, brand_id, event_type, event_date, date_precision, title, body, source, status, created_at, submitted_by, cigars(name), brand_accounts(name)')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
+    const { data } = await supabase.from('cigar_timeline').select('id, cigar_id, brand_id, event_type, event_date, date_precision, title, body, source, status, created_at, submitted_by, cigars(name), brand_accounts(name)').eq('status', 'pending').order('created_at', { ascending: true })
     if (data) {
       const userIds = data.map((e: any) => e.submitted_by).filter(Boolean)
       let usernameMap: Record<string, string> = {}
@@ -411,10 +427,7 @@ export default function AdminPage() {
   async function startTimelineMerge(entry: any) {
     setTimelineMergeId(entry.id); setTimelineMergeTargetId(null)
     setTimelineMergeFields({}); setTimelineSaving(false)
-    const { data, error } = await supabase.from('cigar_timeline')
-      .select('id, cigar_id, event_type, event_date, date_precision, title, body, source, status, created_at')
-      .eq('cigar_id', entry.cigar_id).eq('status', 'live').neq('id', entry.id)
-      .order('event_date', { ascending: true })
+    const { data, error } = await supabase.from('cigar_timeline').select('id, cigar_id, event_type, event_date, date_precision, title, body, source, status, created_at').eq('cigar_id', entry.cigar_id).eq('status', 'live').neq('id', entry.id).order('event_date', { ascending: true })
     if (error) { setTimelineMergeTargets([]); setMsg(`Could not load merge targets: ${error.message}`); return }
     setTimelineMergeTargets(data || [])
   }
@@ -632,6 +645,40 @@ export default function AdminPage() {
     setNewCigar({ name: '', line: '', vitola: '', strength: '', wrapper_origin: '', binder_origin: '', filler_origins: '', msrp: '', upc: '', brand_id: '' })
     setShowNewCigar(false); fetchSection('cigars')
   }
+  async function fetchAwards() {
+    const [globalRes, pendingRes] = await Promise.all([
+      supabase.from('retailer_designations').select('id, name, description, show_in_list').order('name'),
+      supabase.from('store_designations').select('id, store_id, custom_name, created_at, status, retailer_designations(name), stores(name)').eq('status', 'pending').order('created_at', { ascending: true }),
+    ])
+    if (globalRes.data) setGlobalAwards(globalRes.data)
+    if (pendingRes.data) setPendingAwards(pendingRes.data)
+  }
+  async function addGlobalAward() {
+    if (!newAwardName.trim()) return
+    const { error } = await supabase.from('retailer_designations').insert({ name: newAwardName.trim(), description: newAwardDescription.trim() || null, show_in_list: true })
+    if (error) { setAwardMsg(`Error: ${error.message}`); return }
+    setNewAwardName(''); setNewAwardDescription('')
+    setAwardMsg('Award added.')
+    fetchAwards()
+  }
+  async function toggleAwardVisibility(id: string, current: boolean) {
+    await supabase.from('retailer_designations').update({ show_in_list: !current }).eq('id', id)
+    setGlobalAwards(prev => prev.map(a => a.id === id ? { ...a, show_in_list: !current } : a))
+  }
+  async function deleteGlobalAward(id: string) {
+    await supabase.from('retailer_designations').delete().eq('id', id)
+    setGlobalAwards(prev => prev.filter(a => a.id !== id))
+  }
+  async function approvePendingAward(id: string) {
+    await supabase.from('store_designations').update({ verified: true, status: 'approved' }).eq('id', id)
+    setPendingAwards(prev => prev.filter(a => a.id !== id))
+    setAwardMsg('Approved.')
+  }
+  async function rejectPendingAward(id: string) {
+    await supabase.from('store_designations').delete().eq('id', id)
+    setPendingAwards(prev => prev.filter(a => a.id !== id))
+    setAwardMsg('Rejected.')
+  }
 
   if (!authChecked) return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
@@ -649,8 +696,9 @@ export default function AdminPage() {
     { key: 'cigars', label: '🍂 Cigars' }, { key: 'brands', label: '🏭 Brands' },
     { key: 'users', label: '👤 Users' }, { key: 'moderation', label: '📋 Moderation' },
     { key: 'characteristics', label: '🏷 Characteristics' }, { key: 'stores', label: '🏪 Stores' },
-    { key: 'reviews', label: '📝 Reviews' }, { key: 'applications', label: '🏭 Applications' },
-    { key: 'feedback', label: '💬 Feedback' }, { key: 'timeline', label: '📜 Timeline' },
+    { key: 'awards', label: '🏅 Awards' }, { key: 'reviews', label: '📝 Reviews' },
+    { key: 'applications', label: '🏭 Applications' }, { key: 'feedback', label: '💬 Feedback' },
+    { key: 'timeline', label: '📜 Timeline' },
   ] as const
 
   const filteredCigars = cigars.filter(c => {
@@ -989,7 +1037,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div style={{ background: '#f5f0e8', borderRadius: 6, padding: 12 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: '#5a3a1a', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Proposed Changes — approve or reject each field</p>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: '#5a3a1a', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Proposed Changes</p>
                         {Object.entries(edit.changes).filter(([key]) => !key.startsWith('_')).map(([key, val]) => (
                           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, background: '#fff', borderRadius: 6, padding: '8px 12px', border: '1px solid #e8ddd0' }}>
                             <span style={{ color: '#8b5e2a', fontSize: 13, minWidth: 140, fontWeight: 600 }}>{key}</span>
@@ -1086,6 +1134,93 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* ===== AWARDS ===== */}
+          {section === 'awards' && (
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Awards & Designations</h1>
+
+              {awardMsg && (
+                <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>✓ {awardMsg}</span>
+                  <button onClick={() => setAwardMsg('')} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: 16 }}>×</button>
+                </div>
+              )}
+
+              {/* Pending requests */}
+              {pendingAwards.length > 0 && (
+                <div style={{ background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e65100', margin: '0 0 14px' }}>⏳ Pending Requests ({pendingAwards.length})</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {pendingAwards.map((a: any) => (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '12px 16px', border: '1px solid #ffe0b2' }}>
+                        <div>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', margin: '0 0 2px' }}>
+                            {a.retailer_designations?.name || a.custom_name}
+                            {a.custom_name && <span style={{ fontSize: 11, color: '#8b5e2a', marginLeft: 6, fontStyle: 'italic' }}>custom</span>}
+                          </p>
+                          <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{(a.stores as any)?.name} · {new Date(a.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => approvePendingAward(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
+                          <button onClick={() => rejectPendingAward(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fbe9e7', color: '#b71c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Reject</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add new */}
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 20, marginBottom: 24 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a0a00', margin: '0 0 14px' }}>Add to Global List</h3>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4, fontWeight: 600 }}>Name *</label>
+                    <input value={newAwardName} onChange={e => setNewAwardName(e.target.value)} placeholder="e.g. Fuente Cigar Club" style={{ ...inputStyle }} />
+                  </div>
+                  <div style={{ flex: 2, minWidth: 200 }}>
+                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4, fontWeight: 600 }}>Description <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span></label>
+                    <input value={newAwardDescription} onChange={e => setNewAwardDescription(e.target.value)} placeholder="Short description shown on store profiles" style={{ ...inputStyle }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button onClick={addGlobalAward} style={btnPrimary}>Add</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Global list */}
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f5f0e8', borderBottom: '1px solid #e8ddd0' }}>
+                      {['Name', 'Description', 'Show in list', 'Actions'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#5a3a1a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {globalAwards.map((a, i) => (
+                      <tr key={a.id} style={{ borderBottom: '1px solid #f0e8dc', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+                        <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: '#1a0a00' }}>{a.name}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{a.description || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <button onClick={() => toggleAwardVisibility(a.id, a.show_in_list)}
+                            style={{ padding: '4px 12px', borderRadius: 20, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: a.show_in_list ? '#e8f5e9' : '#f5f5f5', color: a.show_in_list ? '#2e7d32' : '#aaa' }}>
+                            {a.show_in_list ? '● Visible' : '○ Hidden'}
+                          </button>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <button onClick={() => deleteGlobalAward(a.id)} style={btnDanger}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {globalAwards.length === 0 && <p style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No awards in the global list yet.</p>}
+              </div>
+            </div>
+          )}
+
           {/* ===== APPLICATIONS ===== */}
           {section === 'applications' && (
             <div>
@@ -1119,28 +1254,25 @@ export default function AdminPage() {
                         </div>
                         <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{new Date(app.created_at).toLocaleDateString()} · {app.role_type}</p>
                       </div>
-
                       <div style={{ background: '#f5f0e8', borderRadius: 6, padding: 12, display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
                         {app.website && <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>WEBSITE</span><a href={app.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#1a0a00' }}>{app.website}</a></div>}
                         <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>ROLE</span><span style={{ fontSize: 13, color: '#1a0a00', fontWeight: 500 }}>{app.role_type}</span></div>
                         {app.message && <div style={{ flex: 1 }}><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 2 }}>MESSAGE</span><span style={{ fontSize: 13, color: '#1a0a00' }}>{app.message}</span></div>}
+                        {app.designations && app.designations.length > 0 && (
+                          <div><span style={{ fontSize: 11, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>DESIGNATIONS</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {app.designations.map(d => <span key={d} style={{ fontSize: 12, background: '#f5f0e8', border: '1px solid #d4b896', borderRadius: 4, padding: '2px 8px', color: '#1a0a00' }}>{d}</span>)}
+                            </div>
+                          </div>
+                        )}
                       </div>
-
                       {app.status === 'pending' && (
                         <div style={{ marginBottom: 14 }}>
-                          <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
-                            Note <span style={{ color: '#bbb', fontWeight: 400 }}>(optional — saved with your decision)</span>
-                          </label>
-                          <textarea
-                            value={appNotes[app.id] ?? ''}
-                            onChange={e => setAppNotes(prev => ({ ...prev, [app.id]: e.target.value }))}
-                            placeholder='e.g. "Welcome! Your Drew Diplomat status has been noted." or "Could you clarify your relationship to the brand?"'
-                            rows={2}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}
-                          />
+                          <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>Note <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span></label>
+                          <textarea value={appNotes[app.id] ?? ''} onChange={e => setAppNotes(prev => ({ ...prev, [app.id]: e.target.value }))} rows={2}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
                         </div>
                       )}
-
                       {app.status === 'pending' && (
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           <button onClick={() => approveApplication(app)} disabled={appActioning === app.id || !app._matched}
@@ -1151,24 +1283,19 @@ export default function AdminPage() {
                             style={{ ...btnDanger, padding: '8px 18px', fontSize: 13, opacity: appActioning === app.id ? 0.6 : 1 }}>
                             ✕ Reject
                           </button>
-                          {!app._matched && (
-                            <span style={{ fontSize: 12, color: '#e65100', fontStyle: 'italic' }}>
-                              No account found — email them to sign up at cigardex.app before approving
-                            </span>
-                          )}
+                          {!app._matched && <span style={{ fontSize: 12, color: '#e65100', fontStyle: 'italic' }}>No account found — email them to sign up at cigardex.app before approving</span>}
                         </div>
                       )}
-
                       {app.status === 'approved' && (
                         <div style={{ borderTop: '1px solid #f0e8dc', paddingTop: 12, marginTop: 4 }}>
                           <p style={{ fontSize: 12, color: '#2e7d32', margin: 0, fontStyle: 'italic' }}>✓ Approved — role updated on existing account</p>
-                          {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Note recorded: {app.admin_note}</p>}
+                          {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Note: {app.admin_note}</p>}
                         </div>
                       )}
                       {app.status === 'rejected' && (
                         <div style={{ borderTop: '1px solid #f0e8dc', paddingTop: 12, marginTop: 4 }}>
                           <p style={{ fontSize: 12, color: '#b71c1c', margin: 0, fontStyle: 'italic' }}>✕ Rejected</p>
-                          {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Reason recorded: {app.admin_note}</p>}
+                          {app.admin_note && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '4px 0 0' }}>Reason: {app.admin_note}</p>}
                         </div>
                       )}
                     </div>
@@ -1339,7 +1466,6 @@ export default function AdminPage() {
                           {entry.source && !isEditing && <p style={{ fontSize: 12, color: '#8b5e2a', margin: 0 }}>Source: <a href={entry.source.startsWith('http') ? entry.source : undefined} target="_blank" rel="noopener noreferrer" style={{ color: '#c4a96a' }}>{entry.source}</a></p>}
                           {isEditing && (
                             <div style={{ borderTop: '1px solid #e8ddd0', marginTop: 12, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: '#8b5e2a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Edit Entry</p>
                               <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Event Type</label>
                                 <select value={timelineEditForm.event_type} onChange={e => setTimelineEditForm(p => ({ ...p, event_type: e.target.value }))} style={inputStyle}>
                                   {['release', 'discontinued', 'blend_change', 'name_change', 'size_change', 'award', 'price_change', 'note'].map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
@@ -1438,15 +1564,14 @@ export default function AdminPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: dupesFound.length > 0 ? 16 : 0 }}>
                       <div>
                         <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 2px' }}>🔍 Duplicate Finder</h3>
-                        <p style={{ fontSize: 12, color: '#8b5e2a', margin: 0 }}>
-                          Find live entries with the same cigar/brand + event type + date
+                        <p style={{ fontSize: 12, color: '#8b5e2a', margin: 0 }}>Find live entries with the same cigar/brand + event type + date
                           {dismissedDupeKeys.size > 0 && <span style={{ marginLeft: 8, color: '#aaa' }}>· {dismissedDupeKeys.size} group{dismissedDupeKeys.size !== 1 ? 's' : ''} dismissed</span>}
                         </p>
                       </div>
                       <button onClick={findTimelineDuplicates} disabled={dupesLoading} style={btnWarning}>{dupesLoading ? 'Scanning...' : 'Find Duplicates'}</button>
                     </div>
                     {dupesFound.length === 0 && !dupesLoading && (
-                      <p style={{ fontSize: 13, color: '#aaa', margin: '8px 0 0' }}>Click Find Duplicates to scan all live entries.{dismissedDupeKeys.size > 0 && ' Dismissed groups are excluded.'}</p>
+                      <p style={{ fontSize: 13, color: '#aaa', margin: '8px 0 0' }}>Click Find Duplicates to scan all live entries.</p>
                     )}
                     {dupesFound.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>

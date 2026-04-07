@@ -64,6 +64,7 @@ type Store = {
   name: string
   city: string | null
   state: string | null
+  store_account_id: string
 }
 
 type Designation = {
@@ -130,22 +131,39 @@ export default function AdminUserPage() {
 
   async function fetchAll() {
     setLoading(true)
-    const [userRes, reviewRes, humidorRes, editRes, storeRes] = await Promise.all([
+
+    const [userRes, reviewRes, humidorRes, editRes] = await Promise.all([
       supabase.from('users').select('id, username, email, role, tier, suspended, experience_level, created_at').eq('id', userId).single(),
       supabase.from('reviews').select('id, rating, notes, draw_score, burn_score, construction_score, value_score, strength_impression, body, finish, occasion, where_smoked, smoked_at, created_at, updated_at, cigars(id, name, brand_accounts(name))').eq('user_id', userId).order('created_at', { ascending: false }),
       supabase.from('humidor_items').select('id, quantity, purchase_date, purchase_price, added_at, cigars(id, name, brand_accounts(name))').eq('user_id', userId).order('added_at', { ascending: false }),
       supabase.from('cigar_edits').select('id, status, changes, created_at, cigars(name)').eq('submitted_by', userId).order('created_at', { ascending: false }),
-      supabase.from('stores').select('id, name, city, state').eq('user_id', userId).order('name'),
     ])
 
     if (userRes.data) setUser(userRes.data)
     if (reviewRes.data) setReviews(reviewRes.data as unknown as Review[])
     if (humidorRes.data) setHumidor(humidorRes.data as unknown as HumidorItem[])
     if (editRes.data) setEdits(editRes.data as unknown as CigarEdit[])
-    if (storeRes.data && storeRes.data.length > 0) {
-      setStores(storeRes.data)
-      setSelectedStoreId(storeRes.data[0].id)
+
+    // Correct join: users → store_accounts → stores
+    // Supports multiple store accounts and multiple stores per account
+    const { data: accountData } = await supabase
+      .from('store_accounts')
+      .select('id')
+      .eq('user_id', userId)
+
+    if (accountData && accountData.length > 0) {
+      const accountIds = accountData.map((a: any) => a.id)
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('id, name, city, state, store_account_id')
+        .in('store_account_id', accountIds)
+        .order('name')
+      if (storeData && storeData.length > 0) {
+        setStores(storeData)
+        setSelectedStoreId(storeData[0].id)
+      }
     }
+
     setLoading(false)
   }
 
@@ -201,7 +219,6 @@ export default function AdminUserPage() {
   }
 
   async function promoteToGlobal(id: string, name: string) {
-    // Add to retailer_designations table, then approve this store's entry
     const { data: existing } = await supabase.from('retailer_designations').select('id').ilike('name', name).maybeSingle()
     if (!existing) {
       await supabase.from('retailer_designations').insert({ name })
@@ -218,8 +235,9 @@ export default function AdminUserPage() {
     fetchStoreDesignations(selectedStoreId)
   }
 
+  // Use RPC to bypass RLS for role updates
   async function updateRole(role: string) {
-    await supabase.from('users').update({ role }).eq('id', userId)
+    await supabase.rpc('update_user_role', { user_id: userId, new_role: role })
     setUser(prev => prev ? { ...prev, role } : prev)
     setActionMsg(`Role updated to ${role}`)
   }
@@ -279,19 +297,19 @@ export default function AdminUserPage() {
   const btnStyle = { padding: '7px 14px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
   const isStore = user.role === 'store'
 
-  // Which standard designations aren't already added
   const addedDesignationIds = storeDesignations.map(d => d.designation_id).filter(Boolean)
   const availableToAdd = allDesignations.filter(d => !addedDesignationIds.includes(d.id))
-
   const approvedDesignations = storeDesignations.filter(d => d.status === 'approved' || d.verified)
   const pendingDesignations = storeDesignations.filter(d => d.status === 'pending' && !d.verified)
+
+  const selectedStore = stores.find(s => s.id === selectedStoreId)
 
   const tabs = [
     { key: 'reviews', label: `Reviews (${reviews.length})` },
     { key: 'humidor', label: `Humidor (${humidor.length})` },
     { key: 'edits', label: `Edits (${edits.length})` },
     { key: 'characteristics', label: `Characteristics (${characteristics.length})` },
-    ...(isStore ? [{ key: 'designations', label: `Designations${stores.length > 0 ? ` (${storeDesignations.filter(d => d.status === 'approved' || d.verified).length})` : ''}` }] : []),
+    ...(isStore ? [{ key: 'designations', label: `Designations (${approvedDesignations.length})` }] : []),
   ] as { key: AdminSection; label: string }[]
 
   return (
@@ -323,7 +341,12 @@ export default function AdminUserPage() {
                 <span style={{ color: '#c4a96a', fontSize: 13 }}>{user.email}</span>
                 <span style={{ color: '#8b6a4a', fontSize: 13 }}>Joined {joinDate}</span>
                 {user.experience_level && <span style={{ color: '#8b6a4a', fontSize: 13 }}>🍂 {user.experience_level}</span>}
-                {isStore && stores.length > 0 && <span style={{ color: '#8b6a4a', fontSize: 13 }}>📍 {stores.map(s => [s.name, s.city, s.state].filter(Boolean).join(', ')).join(' · ')}</span>}
+                {isStore && stores.length > 0 && (
+                  <span style={{ color: '#8b6a4a', fontSize: 13 }}>
+                    📍 {stores.map(s => [s.name, s.city, s.state].filter(Boolean).join(', ')).join(' · ')}
+                    {stores.length > 1 && <span style={{ color: '#c4a96a', marginLeft: 6 }}>({stores.length} locations)</span>}
+                  </span>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
@@ -512,14 +535,16 @@ export default function AdminUserPage() {
             {stores.length === 0 ? (
               <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 40, textAlign: 'center', color: '#aaa' }}>
                 <p style={{ fontSize: 16 }}>No stores found for this user</p>
-                <p style={{ fontSize: 13 }}>Stores are linked via the stores table</p>
+                <p style={{ fontSize: 13 }}>A store account is created automatically when a retailer application is approved.</p>
               </div>
             ) : (
               <div>
-                {/* Store selector — only show if multiple stores */}
+                {/* Multi-store selector */}
                 {stores.length > 1 && (
                   <div style={{ marginBottom: 24, background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 16 }}>
-                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>Managing designations for:</label>
+                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+                      Managing designations for: <span style={{ color: '#aaa', fontWeight: 400 }}>({stores.length} locations)</span>
+                    </label>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {stores.map(store => (
                         <button key={store.id} onClick={() => setSelectedStoreId(store.id)}
@@ -531,10 +556,10 @@ export default function AdminUserPage() {
                   </div>
                 )}
 
-                {stores.length === 1 && (
+                {stores.length === 1 && selectedStore && (
                   <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a0a00', margin: 0 }}>🏪 {stores[0].name}</h2>
-                    {stores[0].city && <span style={{ fontSize: 13, color: '#8b5e2a' }}>{[stores[0].city, stores[0].state].filter(Boolean).join(', ')}</span>}
+                    <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a0a00', margin: 0 }}>🏪 {selectedStore.name}</h2>
+                    {selectedStore.city && <span style={{ fontSize: 13, color: '#8b5e2a' }}>{[selectedStore.city, selectedStore.state].filter(Boolean).join(', ')}</span>}
                   </div>
                 )}
 
@@ -557,18 +582,9 @@ export default function AdminUserPage() {
                             <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>Submitted {d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}</p>
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={() => approveCustomDesignation(d.id)}
-                              style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              ✓ Approve
-                            </button>
-                            <button onClick={() => promoteToGlobal(d.id, d.custom_name!)}
-                              style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e3f2fd', color: '#1565c0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              ↑ Promote to Global
-                            </button>
-                            <button onClick={() => removeDesignation(d.id)}
-                              style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fbe9e7', color: '#b71c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              ✕ Reject
-                            </button>
+                            <button onClick={() => approveCustomDesignation(d.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
+                            <button onClick={() => promoteToGlobal(d.id, d.custom_name!)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e3f2fd', color: '#1565c0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>↑ Promote to Global</button>
+                            <button onClick={() => removeDesignation(d.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fbe9e7', color: '#b71c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Reject</button>
                           </div>
                         </div>
                       ))}
@@ -576,7 +592,7 @@ export default function AdminUserPage() {
                   </div>
                 )}
 
-                {/* Current approved designations */}
+                {/* Active designations */}
                 <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 20, marginBottom: 24 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a0a00', margin: '0 0 14px' }}>✅ Active Designations</h3>
                   {designationsLoading ? (
@@ -591,10 +607,7 @@ export default function AdminUserPage() {
                             {d.designation_id ? d.retailer_designations?.name : d.custom_name}
                             {!d.designation_id && <span style={{ fontSize: 11, color: '#8b5e2a', marginLeft: 6, fontStyle: 'italic' }}>custom</span>}
                           </span>
-                          <button onClick={() => removeDesignation(d.id)}
-                            style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>
-                            ×
-                          </button>
+                          <button onClick={() => removeDesignation(d.id)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>×</button>
                         </div>
                       ))}
                     </div>
@@ -610,9 +623,8 @@ export default function AdminUserPage() {
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {availableToAdd.map(d => (
-                        <button key={d.id} onClick={() => addStandardDesignation(d.id)}
-                          title={d.description || ''}
-                          style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #d4b896', background: '#fff', color: '#5a3a1a', fontSize: 13, cursor: 'pointer', fontWeight: 500, transition: 'all 0.1s' }}
+                        <button key={d.id} onClick={() => addStandardDesignation(d.id)} title={d.description || ''}
+                          style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #d4b896', background: '#fff', color: '#5a3a1a', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f5f0e8'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#8b5e2a' }}
                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#d4b896' }}>
                           + {d.name}
@@ -627,22 +639,18 @@ export default function AdminUserPage() {
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px' }}>Add Custom Designation</h3>
                   <p style={{ fontSize: 12, color: '#8b5e2a', margin: '0 0 14px' }}>For store-specific honors not on the global list — e.g. "Business of the Year — Ottawa 2024"</p>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <input
-                      value={customDesignationInput}
-                      onChange={e => setCustomDesignationInput(e.target.value)}
+                    <input value={customDesignationInput} onChange={e => setCustomDesignationInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addCustomDesignation() }}
                       placeholder='e.g. "Best Cigar Shop — Ottawa 2024"'
-                      style={{ flex: 1, padding: '10px 12px', borderRadius: 7, border: '1px solid #d4b896', fontSize: 14, outline: 'none' }}
-                    />
+                      style={{ flex: 1, padding: '10px 12px', borderRadius: 7, border: '1px solid #d4b896', fontSize: 14, outline: 'none' }} />
                     <button onClick={addCustomDesignation}
                       style={{ padding: '10px 20px', borderRadius: 7, border: 'none', background: '#1a0a00', color: '#f5e6c8', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                       Add
                     </button>
                   </div>
-                  <p style={{ fontSize: 12, color: '#aaa', margin: '8px 0 0', fontStyle: 'italic' }}>
-                    Custom designations are marked pending until approved. You can also promote them to the global list.
-                  </p>
+                  <p style={{ fontSize: 12, color: '#aaa', margin: '8px 0 0', fontStyle: 'italic' }}>Custom designations can be promoted to the global list for use with other stores.</p>
                 </div>
+
               </div>
             )}
           </div>
