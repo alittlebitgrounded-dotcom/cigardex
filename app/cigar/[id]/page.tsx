@@ -58,13 +58,22 @@ type Review = {
   burn_score: number | null
   construction_score: number | null
   value_score: number | null
+  strength_impression: string | null
+  body: string | null
+  finish: string | null
   occasion: string | null
+  where_smoked: string | null
+  smoke_duration_minutes: number | null
   revision_notes: string | null
   smoked_at: string | null
   created_at: string | null
   updated_at: string | null
   source_url?: string | null
   users: { username: string; publication_name: string | null; role: string } | null
+  _helpful?: number
+  _not_helpful?: number
+  _my_vote?: string | null
+  _pairing?: { category: string; subcategory: string | null; free_text: string | null } | null
 }
 
 type Inventory = {
@@ -92,10 +101,7 @@ type CigarDesignation = {
 type Characteristic = {
   id: string
   vote_count: number
-  characteristics: {
-    canonical_name: string
-    category: string
-  } | null
+  characteristics: { canonical_name: string; category: string } | null
 }
 
 const STRENGTH_LABELS: Record<string, string> = {
@@ -110,6 +116,13 @@ const STRENGTH_TEXT: Record<string, string> = {
   mild: '#2e7d32', mild_medium: '#388e3c', medium: '#e65100',
   medium_full: '#bf360c', full: '#b71c1c',
 }
+
+const DURATION_LABELS: Record<number, string> = {
+  25: '< 30 min', 38: '30–45 min', 53: '45–60 min',
+  75: '1–1.5 hrs', 105: '1.5–2 hrs', 135: '2+ hrs',
+}
+
+const REVIEWS_PER_PAGE = 10
 
 type StoreFilter = 'all' | 'brick' | 'online'
 type ContentTab = 'reviews' | 'inventory' | 'history'
@@ -137,6 +150,8 @@ export default function CigarDetailPage() {
   const [isWishlisted, setIsWishlisted] = useState(false)
   const [isInHumidor, setIsInHumidor] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [reviewPage, setReviewPage] = useState(1)
+  const [votingId, setVotingId] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -181,12 +196,10 @@ export default function CigarDetailPage() {
     if (!currentUser || !cigar) return
     if (isWishlisted) {
       await supabase.from('wishlist_items').delete().eq('user_id', currentUser.id).eq('cigar_id', cigar.id)
-      setIsWishlisted(false)
-      showToast('Removed from Wishlist')
+      setIsWishlisted(false); showToast('Removed from Wishlist')
     } else {
       await supabase.from('wishlist_items').insert({ user_id: currentUser.id, cigar_id: cigar.id })
-      setIsWishlisted(true)
-      showToast('Added to Wishlist')
+      setIsWishlisted(true); showToast('Added to Wishlist')
     }
   }
 
@@ -194,12 +207,10 @@ export default function CigarDetailPage() {
     if (!currentUser || !cigar) return
     if (isInHumidor) {
       await supabase.from('humidor_items').delete().eq('user_id', currentUser.id).eq('cigar_id', cigar.id)
-      setIsInHumidor(false)
-      showToast('Removed from Humidor')
+      setIsInHumidor(false); showToast('Removed from Humidor')
     } else {
       await supabase.from('humidor_items').insert({ user_id: currentUser.id, cigar_id: cigar.id, added_at: new Date().toISOString() })
-      setIsInHumidor(true)
-      showToast('Added to Humidor')
+      setIsInHumidor(true); showToast('Added to Humidor')
     }
   }
 
@@ -208,7 +219,7 @@ export default function CigarDetailPage() {
     const [cigarRes, historyRes, reviewRes, inventoryRes, charRes, designationRes] = await Promise.all([
       supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, description, logo_url)').eq('id', id).single(),
       supabase.from('cigar_history').select('id, event_type, description, event_date').eq('cigar_id', id).eq('status', 'approved').order('event_date', { ascending: false }),
-      supabase.from('reviews').select('id, user_id, cigar_id, rating, notes, draw_score, burn_score, construction_score, value_score, occasion, revision_notes, smoked_at, created_at, updated_at, source_url').eq('cigar_id', id).order('created_at', { ascending: false }),
+      supabase.from('reviews').select('id, user_id, cigar_id, rating, notes, draw_score, burn_score, construction_score, value_score, strength_impression, body, finish, occasion, where_smoked, smoke_duration_minutes, revision_notes, smoked_at, created_at, updated_at, source_url').eq('cigar_id', id).order('created_at', { ascending: false }),
       supabase.from('inventory').select('id, in_stock, price, url, stores(name, type, city, state, website_url, store_designations(retailer_designations(name, description)))').eq('cigar_id', id),
       supabase.from('cigar_characteristics').select('id, vote_count, characteristics(canonical_name, category)').eq('cigar_id', id).order('vote_count', { ascending: false }),
       supabase.from('cigar_designations').select('id, retailer_designations(name, description)').eq('cigar_id', id),
@@ -219,7 +230,9 @@ export default function CigarDetailPage() {
 
     if (reviewRes.data) {
       const rawReviews = reviewRes.data as unknown as Review[]
+      const reviewIds = rawReviews.map(r => r.id)
       const userIds = rawReviews.map(r => r.user_id).filter((id): id is string => Boolean(id))
+
       const userDataMap: Record<string, { username: string; publication_name: string | null; role: string }> = {}
       if (userIds.length > 0) {
         const { data: userRows } = await supabase.from('users').select('id, username, publication_name, role').in('id', userIds)
@@ -227,9 +240,53 @@ export default function CigarDetailPage() {
           userDataMap[u.id] = { username: u.username, publication_name: u.publication_name || null, role: u.role }
         })
       }
+
+      // Fetch votes
+      const voteMap: Record<string, { helpful: number; not_helpful: number }> = {}
+      const myVoteMap: Record<string, string> = {}
+      if (reviewIds.length > 0) {
+        const { data: votes } = await supabase.from('review_votes').select('review_id, vote, user_id').in('review_id', reviewIds)
+        if (votes) {
+          votes.forEach((v: any) => {
+            if (!voteMap[v.review_id]) voteMap[v.review_id] = { helpful: 0, not_helpful: 0 }
+            if (v.vote === 'helpful') voteMap[v.review_id].helpful++
+            else voteMap[v.review_id].not_helpful++
+          })
+          // Get current user's votes
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) {
+            votes.filter((v: any) => v.user_id === session.user.id).forEach((v: any) => {
+              myVoteMap[v.review_id] = v.vote
+            })
+          }
+        }
+      }
+
+      // Fetch pairings
+      const pairingMap: Record<string, { category: string; subcategory: string | null; free_text: string | null }> = {}
+      if (reviewIds.length > 0) {
+        const { data: pairings } = await supabase
+          .from('review_pairings')
+          .select('review_id, free_text, pairing_categories(name), pairing_subcategories(name)')
+          .in('review_id', reviewIds)
+        if (pairings) {
+          pairings.forEach((p: any) => {
+            pairingMap[p.review_id] = {
+              category: p.pairing_categories?.name || '',
+              subcategory: p.pairing_subcategories?.name || null,
+              free_text: p.free_text || null,
+            }
+          })
+        }
+      }
+
       setReviews(rawReviews.map(r => ({
         ...r,
         users: r.user_id && userDataMap[r.user_id] ? userDataMap[r.user_id] : null,
+        _helpful: voteMap[r.id]?.helpful || 0,
+        _not_helpful: voteMap[r.id]?.not_helpful || 0,
+        _my_vote: myVoteMap[r.id] || null,
+        _pairing: pairingMap[r.id] || null,
       })))
     }
 
@@ -239,10 +296,53 @@ export default function CigarDetailPage() {
     setLoading(false)
   }
 
+  async function handleVote(reviewId: string, vote: 'helpful' | 'not_helpful') {
+    if (!currentUser || votingId) return
+    setVotingId(reviewId)
+
+    const existing = reviews.find(r => r.id === reviewId)?._my_vote
+
+    if (existing === vote) {
+      // Remove vote
+      await supabase.from('review_votes').delete().eq('review_id', reviewId).eq('user_id', currentUser.id)
+      setReviews(prev => prev.map(r => r.id === reviewId ? {
+        ...r,
+        _my_vote: null,
+        _helpful: vote === 'helpful' ? (r._helpful || 1) - 1 : r._helpful,
+        _not_helpful: vote === 'not_helpful' ? (r._not_helpful || 1) - 1 : r._not_helpful,
+      } : r))
+    } else if (existing) {
+      // Change vote
+      await supabase.from('review_votes').update({ vote }).eq('review_id', reviewId).eq('user_id', currentUser.id)
+      setReviews(prev => prev.map(r => r.id === reviewId ? {
+        ...r,
+        _my_vote: vote,
+        _helpful: vote === 'helpful' ? (r._helpful || 0) + 1 : (r._helpful || 1) - 1,
+        _not_helpful: vote === 'not_helpful' ? (r._not_helpful || 0) + 1 : (r._not_helpful || 1) - 1,
+      } : r))
+    } else {
+      // New vote
+      await supabase.from('review_votes').insert({ review_id: reviewId, user_id: currentUser.id, vote })
+      setReviews(prev => prev.map(r => r.id === reviewId ? {
+        ...r,
+        _my_vote: vote,
+        _helpful: vote === 'helpful' ? (r._helpful || 0) + 1 : r._helpful,
+        _not_helpful: vote === 'not_helpful' ? (r._not_helpful || 0) + 1 : r._not_helpful,
+      } : r))
+    }
+    setVotingId(null)
+  }
+
   function avgRating() {
     const rated = reviews.filter(r => r.rating !== null)
     if (!rated.length) return null
     return (rated.reduce((sum, r) => sum + (r.rating || 0), 0) / rated.length).toFixed(1)
+  }
+
+  function avgScore(field: 'draw_score' | 'burn_score' | 'construction_score' | 'value_score') {
+    const scored = reviews.filter(r => r[field] !== null)
+    if (scored.length < 10) return null
+    return scored.reduce((sum, r) => sum + (r[field] || 0), 0) / scored.length
   }
 
   function storeIcon(type: string) {
@@ -250,13 +350,11 @@ export default function CigarDetailPage() {
     if (type === 'brick_and_mortar') return '🏪'
     return '🏪🌐'
   }
-
   function storeTypeLabel(type: string) {
     if (type === 'online') return 'Online'
     if (type === 'brick_and_mortar') return 'In-Store'
     return 'In-Store & Online'
   }
-
   function priceTier(msrp: number | null): string | null {
     if (!msrp) return null
     if (msrp < 5) return '$'
@@ -266,16 +364,17 @@ export default function CigarDetailPage() {
     return '$$$$$'
   }
 
-  function scoreBar(label: string, value: number | null) {
-    if (!value) return null
+  function ScoreBar({ label, value, avg }: { label: string; value?: number | null; avg?: number | null }) {
+    const v = value ?? avg
+    if (!v) return null
     return (
-      <div key={label} style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <span style={{ fontSize: 13, color: '#5a3a1a' }}>{label}</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#1a0a00' }}>{value.toFixed(1)}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#1a0a00' }}>{v.toFixed(1)}</span>
         </div>
         <div style={{ background: '#f0e8dc', borderRadius: 4, height: 6 }}>
-          <div style={{ background: '#c4a96a', borderRadius: 4, height: 6, width: `${(value / 10) * 100}%` }} />
+          <div style={{ background: '#c4a96a', borderRadius: 4, height: 6, width: `${(v / 10) * 100}%` }} />
         </div>
       </div>
     )
@@ -289,13 +388,15 @@ export default function CigarDetailPage() {
   })
 
   const userReview = currentUser ? reviews.find(r => r.user_id === currentUser.id) || null : null
+  const totalPages = Math.ceil(reviews.length / REVIEWS_PER_PAGE)
+  const pagedReviews = reviews.slice((reviewPage - 1) * REVIEWS_PER_PAGE, reviewPage * REVIEWS_PER_PAGE)
+  const showSummary = reviews.length >= 10
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
-
   if (!cigar) return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
       <p style={{ color: '#8b5e2a' }}>Cigar not found.</p>
@@ -310,9 +411,13 @@ export default function CigarDetailPage() {
     charsByCategory[cat].push(c)
   })
 
+  const avgDraw = avgScore('draw_score')
+  const avgBurn = avgScore('burn_score')
+  const avgConstruction = avgScore('construction_score')
+  const avgValue = avgScore('value_score')
+
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
-
       {toastMessage && (
         <div style={{ position: 'fixed', top: 80, right: 24, background: '#1a0a00', color: '#f5e6c8', padding: '12px 16px', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 1000, fontSize: 14, fontWeight: 600 }}>
           {toastMessage}
@@ -321,7 +426,6 @@ export default function CigarDetailPage() {
 
       <Header />
 
-      {/* Breadcrumb */}
       <div style={{ background: '#f0e8dc', padding: '10px 32px', fontSize: 13, color: '#8b5e2a' }}>
         <a href="/" style={{ color: '#8b5e2a', textDecoration: 'none' }}>Browse</a>
         <span style={{ margin: '0 8px' }}>›</span>
@@ -335,8 +439,6 @@ export default function CigarDetailPage() {
 
           {/* Left column */}
           <div>
-
-            {/* Main tab bar */}
             <div style={{ display: 'flex', borderBottom: '2px solid #e8ddd0', marginBottom: 24 }}>
               {(['overview', 'timeline'] as const).map(tab => (
                 <button key={tab} onClick={() => setMainTab(tab)} style={{
@@ -352,53 +454,37 @@ export default function CigarDetailPage() {
               ))}
             </div>
 
-            {/* Overview tab */}
             {mainTab === 'overview' && (
               <div>
                 {/* Main card */}
                 <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 32, marginBottom: 24 }}>
                   <div style={{ display: 'flex', gap: 24 }}>
-                    {/* Logo */}
                     <div style={{ width: 160, height: 200, background: '#f5f0e8', borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e8ddd0' }}>
                       {cigar.brand_accounts?.logo_url
                         ? <img src={cigar.brand_accounts.logo_url} alt={cigar.brand_accounts.name} style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} />
                         : <span style={{ fontSize: 40 }}>🍂</span>}
                     </div>
-
                     <div style={{ flex: 1 }}>
                       {cigar.is_limited && (
-                        <span style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.05em', marginBottom: 10, display: 'inline-block' }}>
-                          LIMITED / DISCONTINUED
-                        </span>
+                        <span style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.05em', marginBottom: 10, display: 'inline-block' }}>LIMITED / DISCONTINUED</span>
                       )}
-
                       {cigarDesignations.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                           {cigarDesignations.map(d => (
-                            <span key={d.id} style={{ background: '#1a0a00', color: '#c4a96a', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.04em' }}>
-                              ★ {d.retailer_designations?.name}
-                            </span>
+                            <span key={d.id} style={{ background: '#1a0a00', color: '#c4a96a', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4 }}>★ {d.retailer_designations?.name}</span>
                           ))}
                         </div>
                       )}
-
-                      <p style={{ color: '#c4a96a', fontSize: 13, fontWeight: 600, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {cigar.brand_accounts?.name}
-                      </p>
-
+                      <p style={{ color: '#c4a96a', fontSize: 13, fontWeight: 600, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{cigar.brand_accounts?.name}</p>
                       <h1 style={{ color: '#1a0a00', fontSize: 28, fontWeight: 700, margin: '0 0 6px', lineHeight: 1.2 }}>{cigar.name}</h1>
-
                       {cigar.line && !cigar.name.toLowerCase().includes(cigar.line.toLowerCase()) && (
                         <p style={{ color: '#8b5e2a', fontSize: 15, margin: '0 0 16px' }}>{cigar.line}</p>
                       )}
-
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                         {cigar.vitola && <span style={{ background: '#f5f0e8', color: '#5a3a1a', fontSize: 13, padding: '4px 12px', borderRadius: 6, fontWeight: 500 }}>{cigar.vitola}</span>}
                         {cigar.strength && <span style={{ background: STRENGTH_BG[cigar.strength] || '#f5f5f5', color: STRENGTH_TEXT[cigar.strength] || '#555', fontSize: 13, padding: '4px 12px', borderRadius: 6, fontWeight: 500 }}>{STRENGTH_LABELS[cigar.strength] || cigar.strength}</span>}
                         {cigar.wrapper_origin && <span style={{ background: '#f0f4f8', color: '#3a5a7a', fontSize: 13, padding: '4px 12px', borderRadius: 6, fontWeight: 500 }}>{cigar.wrapper_origin}</span>}
                       </div>
-
-                      {/* Rating + price + action buttons */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
                         {avg ? (
                           <div style={{ textAlign: 'center' }}>
@@ -408,39 +494,29 @@ export default function CigarDetailPage() {
                         ) : (
                           <div style={{ color: '#aaa', fontSize: 13 }}>No reviews yet</div>
                         )}
-
                         {cigar.msrp && (
                           <div>
                             <div style={{ fontSize: 26, fontWeight: 700, color: '#1a0a00', letterSpacing: 2 }}>{priceTier(cigar.msrp)}</div>
                             <div style={{ fontSize: 12, color: '#8b5e2a' }}>Price range</div>
                           </div>
                         )}
-
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                           {currentUser ? (
                             <>
-                              <button
-                                onClick={() => { setMainTab('overview'); setShowReviewForm(prev => !prev) }}
-                                style={{ background: showReviewForm ? '#f5f0e8' : '#1a0a00', color: showReviewForm ? '#5a3a1a' : '#f5e6c8', border: showReviewForm ? '1px solid #d4b896' : 'none', borderRadius: 8, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
-                              >
+                              <button onClick={() => { setMainTab('overview'); setShowReviewForm(prev => !prev) }}
+                                style={{ background: showReviewForm ? '#f5f0e8' : '#1a0a00', color: showReviewForm ? '#5a3a1a' : '#f5e6c8', border: showReviewForm ? '1px solid #d4b896' : 'none', borderRadius: 8, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
                                 {showReviewForm ? 'Cancel' : userReview ? 'Edit/Update Review' : 'Write a Review'}
                               </button>
-                              <button
-                                onClick={() => setShowSuggestEdit(true)}
-                                style={{ background: 'none', border: '1px solid #c4a96a', color: '#c4a96a', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}
-                              >
+                              <button onClick={() => setShowSuggestEdit(true)}
+                                style={{ background: 'none', border: '1px solid #c4a96a', color: '#c4a96a', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
                                 Suggest an Edit
                               </button>
                             </>
                           ) : (
-                            <a href="/" style={{ background: '#f5f0e8', color: '#8b5e2a', border: '1px solid #d4b896', borderRadius: 8, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
-                              Sign in to Review
-                            </a>
+                            <a href="/" style={{ background: '#f5f0e8', color: '#8b5e2a', border: '1px solid #d4b896', borderRadius: 8, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>Sign in to Review</a>
                           )}
                         </div>
                       </div>
-
-                      {/* Wishlist / humidor icons */}
                       {currentUser && (
                         <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                           <button onClick={handleWishlistToggle} title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
@@ -456,37 +532,15 @@ export default function CigarDetailPage() {
                     </div>
                   </div>
 
-                  {/* Review form — only when open and logged in */}
                   {showReviewForm && currentUser && (
-                    <ReviewForm
-                      cigarId={cigar.id}
-                      cigarName={cigar.name}
-                      userId={currentUser.id}
-                      userRole={currentUserRole ?? undefined}
-                      existingReview={userReview as never}
-                      onSaved={() => { setShowReviewForm(false); fetchAll() }}
-                      onCancel={() => setShowReviewForm(false)}
-                    />
+                    <ReviewForm cigarId={cigar.id} cigarName={cigar.name} userId={currentUser.id} userRole={currentUserRole ?? undefined}
+                      existingReview={userReview as never} onSaved={() => { setShowReviewForm(false); fetchAll() }} onCancel={() => setShowReviewForm(false)} />
                   )}
-
-                  {/* Suggest edit form */}
                   {showSuggestEdit && currentUser && (
-                    <SuggestEdit
-                      cigar={cigar}
-                      userId={currentUser.id}
-                      onClose={() => setShowSuggestEdit(false)}
-                    />
+                    <SuggestEdit cigar={cigar} userId={currentUser.id} onClose={() => setShowSuggestEdit(false)} />
                   )}
-
-                  {/* Report error form */}
                   {showReportError && currentUser && cigar && (
-                    <ReportError
-                      targetType="cigar"
-                      targetId={cigar.id}
-                      targetName={cigar.name}
-                      userId={currentUser.id}
-                      onClose={() => setShowReportError(false)}
-                    />
+                    <ReportError targetType="cigar" targetId={cigar.id} targetName={cigar.name} userId={currentUser.id} onClose={() => setShowReportError(false)} />
                   )}
                 </div>
 
@@ -500,8 +554,7 @@ export default function CigarDetailPage() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {chars.map(c => (
                             <span key={c.id} style={{ background: '#f5f0e8', color: '#5a3a1a', fontSize: 13, padding: '5px 12px', borderRadius: 20, fontWeight: 500, border: '1px solid #e8ddd0' }}>
-                              {c.characteristics?.canonical_name}
-                              <span style={{ color: '#c4a96a', marginLeft: 6, fontSize: 11 }}>{c.vote_count}</span>
+                              {c.characteristics?.canonical_name}<span style={{ color: '#c4a96a', marginLeft: 6, fontSize: 11 }}>{c.vote_count}</span>
                             </span>
                           ))}
                         </div>
@@ -530,8 +583,6 @@ export default function CigarDetailPage() {
                   </div>
 
                   <div style={{ padding: 24 }}>
-
-                    {/* Reviews */}
                     {contentTab === 'reviews' && (
                       reviews.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 0', color: '#aaa' }}>
@@ -539,49 +590,136 @@ export default function CigarDetailPage() {
                           <p style={{ fontSize: 13 }}>Be the first to review this cigar</p>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                          {reviews.map(r => (
-                            <div key={r.id} style={{ borderBottom: '1px solid #f0e8dc', paddingBottom: 24 }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
-                                    <span style={{ fontWeight: 700, color: '#1a0a00', fontSize: 15 }}>
-                                      {r.users?.username || 'Anonymous'}
-                                      {r.users?.publication_name && (
-                                        <span style={{ fontWeight: 400, color: '#8b5e2a' }}> — {r.users.publication_name}</span>
+                        <div>
+                          {/* Summary bar — only when 10+ reviews */}
+                          {showSummary && (
+         <div style={{ background: '#f5f0e8', borderRadius: 10, padding: 20, marginBottom: 24, border: '1px solid #e8ddd0' }}>
+  <p style={{ fontSize: 11, fontWeight: 700, color: '#8b5e2a', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 14px' }}>Community Summary</p>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 16 }}>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 48, fontWeight: 700, color: '#1a0a00', lineHeight: 1 }}>{avg}</div>
+      <div style={{ fontSize: 12, color: '#8b5e2a', marginTop: 4 }}>{reviews.length} reviews</div>
+    </div>
+
+                                <div style={{ flex: 1 }}>
+                                  {avgDraw !== null && <ScoreBar label="Draw" avg={avgDraw} />}
+                                  {avgBurn !== null && <ScoreBar label="Burn" avg={avgBurn} />}
+                                  {avgConstruction !== null && <ScoreBar label="Construction" avg={avgConstruction} />}
+                                  {avgValue !== null && <ScoreBar label="Value" avg={avgValue} />}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Review cards */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                            {pagedReviews.map(r => (
+                              <div key={r.id} style={{ borderBottom: '1px solid #f0e8dc', paddingBottom: 24 }}>
+                                {/* Header */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+                                      <span style={{ fontWeight: 700, color: '#1a0a00', fontSize: 15 }}>
+                                        {r.users?.username || 'Anonymous'}
+                                        {r.users?.publication_name && <span style={{ fontWeight: 400, color: '#8b5e2a' }}> — {r.users.publication_name}</span>}
+                                      </span>
+                                      {r.users?.role === 'reviewer' && (
+                                        <span style={{ fontSize: 10, fontWeight: 700, background: '#1a0a00', color: '#c4a96a', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.05em' }}>PRESS</span>
                                       )}
-                                    </span>
-                                    {r.users?.role === 'reviewer' && (
-                                      <span style={{ fontSize: 10, fontWeight: 700, background: '#1a0a00', color: '#c4a96a', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.05em' }}>PRESS</span>
+                                    </div>
+                                    {r.source_url && (
+                                      <a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>Read full review →</a>
+                                    )}
+                                    {r.smoked_at && (
+                                      <p style={{ fontSize: 11, color: '#aaa', margin: '3px 0 0' }}>{new Date(r.smoked_at).toLocaleDateString()}</p>
                                     )}
                                   </div>
-                                  {r.source_url && (
-                                    <a href={r.source_url} target="_blank" rel="noopener noreferrer"
-                                      style={{ fontSize: 12, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>
-                                      Read full review →
-                                    </a>
+                                  {r.rating && <span style={{ fontSize: 28, fontWeight: 700, color: '#1a0a00', flexShrink: 0 }}>{r.rating.toFixed(1)}<span style={{ fontSize: 13, color: '#aaa' }}>/10</span></span>}
+                                </div>
+
+                                {/* Notes */}
+                                {r.notes && <p style={{ color: '#444', fontSize: 14, lineHeight: 1.7, margin: '0 0 14px' }}>{r.notes}</p>}
+
+                                {/* Score bars */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px', marginBottom: 12 }}>
+                                  <ScoreBar label="Draw" value={r.draw_score} />
+                                  <ScoreBar label="Burn" value={r.burn_score} />
+                                  <ScoreBar label="Construction" value={r.construction_score} />
+                                  <ScoreBar label="Value" value={r.value_score} />
+                                </div>
+
+                                {/* Detail chips */}
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                  {r.strength_impression && (
+                                    <span style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>💪 {r.strength_impression}</span>
+                                  )}
+                                  {r.body && (
+                                    <span style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>Body: {r.body}</span>
+                                  )}
+                                  {r.finish && r.finish.split(',').map(f => (
+                                    <span key={f} style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>Finish: {f.trim()}</span>
+                                  ))}
+                                  {r.occasion && (
+                                    <span style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>{r.occasion}</span>
+                                  )}
+                                  {r.where_smoked && (
+                                    <span style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>📍 {r.where_smoked}</span>
+                                  )}
+                                  {r.smoke_duration_minutes && DURATION_LABELS[r.smoke_duration_minutes] && (
+                                    <span style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>⏱ {DURATION_LABELS[r.smoke_duration_minutes]}</span>
+                                  )}
+                                  {r._pairing && r._pairing.category && (
+                                    <span style={{ fontSize: 12, background: '#e8f0f5', color: '#3a5a7a', padding: '3px 10px', borderRadius: 4 }}>
+                                      🥃 {r._pairing.category}{r._pairing.subcategory ? ` · ${r._pairing.subcategory}` : ''}{r._pairing.free_text ? ` — ${r._pairing.free_text}` : ''}
+                                    </span>
                                   )}
                                 </div>
-                                {r.rating && <span style={{ fontSize: 28, fontWeight: 700, color: '#1a0a00', flexShrink: 0 }}>{r.rating.toFixed(1)}<span style={{ fontSize: 13, color: '#aaa' }}>/10</span></span>}
+
+                                {r.revision_notes && <p style={{ fontSize: 12, color: '#aaa', fontStyle: 'italic', margin: '0 0 10px' }}>Updated: {r.revision_notes}</p>}
+
+                                {/* Helpful votes */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                                  <span style={{ fontSize: 12, color: '#aaa' }}>Helpful?</span>
+                                  <button
+                                    onClick={() => currentUser ? handleVote(r.id, 'helpful') : showToast('Sign in to vote')}
+                                    disabled={votingId === r.id}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: `1px solid ${r._my_vote === 'helpful' ? '#2e7d32' : '#e8ddd0'}`, background: r._my_vote === 'helpful' ? '#e8f5e9' : '#fff', color: r._my_vote === 'helpful' ? '#2e7d32' : '#8b5e2a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                    👍 {r._helpful || 0}
+                                  </button>
+                                  <button
+                                    onClick={() => currentUser ? handleVote(r.id, 'not_helpful') : showToast('Sign in to vote')}
+                                    disabled={votingId === r.id}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: `1px solid ${r._my_vote === 'not_helpful' ? '#b71c1c' : '#e8ddd0'}`, background: r._my_vote === 'not_helpful' ? '#fbe9e7' : '#fff', color: r._my_vote === 'not_helpful' ? '#b71c1c' : '#8b5e2a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                    👎 {r._not_helpful || 0}
+                                  </button>
+                                </div>
                               </div>
-                              {r.notes && <p style={{ color: '#444', fontSize: 14, lineHeight: 1.7, margin: '0 0 14px' }}>{r.notes}</p>}
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px', marginBottom: 12 }}>
-                                {scoreBar('Draw', r.draw_score)}
-                                {scoreBar('Burn', r.burn_score)}
-                                {scoreBar('Construction', r.construction_score)}
-                                {scoreBar('Value', r.value_score)}
-                              </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                {r.occasion && <span style={{ fontSize: 12, background: '#f5f0e8', color: '#5a3a1a', padding: '3px 10px', borderRadius: 4 }}>{r.occasion}</span>}
-                              </div>
-                              {r.revision_notes && <p style={{ fontSize: 12, color: '#aaa', fontStyle: 'italic', margin: '8px 0 0' }}>Updated: {r.revision_notes}</p>}
+                            ))}
+                          </div>
+
+                          {/* Pagination */}
+                          {totalPages > 1 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 24, alignItems: 'center' }}>
+                              <button onClick={() => setReviewPage(p => Math.max(1, p - 1))} disabled={reviewPage === 1}
+                                style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #d4b896', background: reviewPage === 1 ? '#f5f5f5' : '#fff', color: reviewPage === 1 ? '#ccc' : '#5a3a1a', fontSize: 13, cursor: reviewPage === 1 ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+                                ← Prev
+                              </button>
+                              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                                <button key={p} onClick={() => setReviewPage(p)}
+                                  style={{ padding: '7px 12px', borderRadius: 6, border: `1px solid ${p === reviewPage ? '#1a0a00' : '#d4b896'}`, background: p === reviewPage ? '#1a0a00' : '#fff', color: p === reviewPage ? '#f5e6c8' : '#5a3a1a', fontSize: 13, cursor: 'pointer', fontWeight: p === reviewPage ? 700 : 400 }}>
+                                  {p}
+                                </button>
+                              ))}
+                              <button onClick={() => setReviewPage(p => Math.min(totalPages, p + 1))} disabled={reviewPage === totalPages}
+                                style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #d4b896', background: reviewPage === totalPages ? '#f5f5f5' : '#fff', color: reviewPage === totalPages ? '#ccc' : '#5a3a1a', fontSize: 13, cursor: reviewPage === totalPages ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+                                Next →
+                              </button>
                             </div>
-                          ))}
+                          )}
                         </div>
                       )
                     )}
 
-                    {/* Where to Buy */}
                     {contentTab === 'inventory' && (
                       <div>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
@@ -641,7 +779,6 @@ export default function CigarDetailPage() {
                       </div>
                     )}
 
-                    {/* History */}
                     {contentTab === 'history' && (
                       history.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 0', color: '#aaa' }}><p>No history recorded yet</p></div>
@@ -663,15 +800,9 @@ export default function CigarDetailPage() {
               </div>
             )}
 
-            {/* Timeline tab */}
             {mainTab === 'timeline' && (
-              <CigarTimeline
-                cigarId={cigar.id}
-                userRole={currentUserRole}
-                userId={currentUser?.id ?? null}
-              />
+              <CigarTimeline cigarId={cigar.id} userRole={currentUserRole} userId={currentUser?.id ?? null} />
             )}
-
           </div>
 
           {/* Sidebar */}
@@ -695,21 +826,13 @@ export default function CigarDetailPage() {
                   <span style={{ fontSize: 13, fontWeight: 500, color: '#1a0a00', textAlign: 'right', maxWidth: '60%' }}>{val}</span>
                 </div>
               ))}
-
               {cigar.brand_accounts && (
                 <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e8ddd0' }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: '#5a3a1a', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>
-                    About {cigar.brand_accounts.name}
-                  </h3>
-                  {cigar.brand_accounts.country_of_origin && (
-                    <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 8px' }}>🌍 {cigar.brand_accounts.country_of_origin}</p>
-                  )}
-                  {cigar.brand_accounts.description && (
-                    <p style={{ fontSize: 13, color: '#444', lineHeight: 1.6, margin: 0 }}>{cigar.brand_accounts.description}</p>
-                  )}
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: '#5a3a1a', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px' }}>About {cigar.brand_accounts.name}</h3>
+                  {cigar.brand_accounts.country_of_origin && <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 8px' }}>🌍 {cigar.brand_accounts.country_of_origin}</p>}
+                  {cigar.brand_accounts.description && <p style={{ fontSize: 13, color: '#444', lineHeight: 1.6, margin: 0 }}>{cigar.brand_accounts.description}</p>}
                 </div>
               )}
-
               {currentUser && (
                 <button onClick={handleHumidorToggle}
                   style={{ width: '100%', marginTop: 24, background: isInHumidor ? '#c4a96a' : '#f5f0e8', color: isInHumidor ? '#1a0a00' : '#5a3a1a', border: '1px solid #d4b896', borderRadius: 8, padding: '12px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
