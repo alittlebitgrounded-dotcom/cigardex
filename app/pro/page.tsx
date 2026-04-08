@@ -56,11 +56,11 @@ const ROLE_CONTENT: Record<string, {
       { label: 'Direct timeline access', description: 'Submit timeline entries that go live without community review.' },
       { label: 'Contact info on brand page', description: 'Your direct contact visible to retailers and enthusiasts.' },
     ],
-    tools: [
-      { icon: '🍂', label: 'My Brand Page', description: 'View and edit your public brand page.', href: '/brands', available: true },
-      { icon: '📜', label: 'Timeline', description: 'Add history and milestones to your brand.', href: '/brands', available: true },
-      { icon: '🍂', label: 'Cigar Catalog', description: 'View all cigars listed under your brand.', href: '/brands', available: true },
-    ],
+tools: [
+  { icon: '🍂', label: 'My Brand Profile', description: 'Set your role and manage which brands you represent.', href: '/brand-rep/setup', available: true },
+  { icon: '📜', label: 'Timeline', description: 'Add history and milestones to your brand pages.', href: '/brands', available: true },
+  { icon: '🍂', label: 'Cigar Catalog', description: 'View all cigars listed under your brands.', href: '/brands', available: true },
+],
     faq: [
       { q: 'How do I edit my brand\'s About section?', a: 'Go to your brand page and look for the edit option — it\'s available to verified brand reps.' },
       { q: 'How do I add cigars to my catalog?', a: 'Contact us or use the suggest edit feature on any cigar page. Brand reps get priority review.' },

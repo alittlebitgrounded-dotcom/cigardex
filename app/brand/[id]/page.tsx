@@ -15,6 +15,9 @@ type Brand = {
   country_of_origin: string | null
   founded_year: string | null
   description: string | null
+  about: string | null
+  about_updated_by: string | null
+  about_updated_at: string | null
   logo_url: string | null
   tier: string
 }
@@ -76,8 +79,8 @@ function CigarCard({ cigar }: { cigar: Cigar }) {
   )
 }
 
-function ScrollRow({ title, cigars, badge, onShuffle, shuffling }: {
-  title: string; cigars: Cigar[]; badge?: string
+function ScrollRow({ title, cigars, onShuffle, shuffling }: {
+  title: string; cigars: Cigar[]
   onShuffle?: () => void; shuffling?: boolean
 }) {
   if (cigars.length === 0) return null
@@ -113,6 +116,8 @@ export default function BrandPage() {
   const [loading, setLoading] = useState(true)
   const [activeSection, setActiveSection] = useState<BrandSection>('cigars')
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+  const [isApprovedRep, setIsApprovedRep] = useState(false)
   const [showReportError, setShowReportError] = useState(false)
 
   const [newestCigars, setNewestCigars] = useState<Cigar[]>([])
@@ -125,25 +130,55 @@ export default function BrandPage() {
   const [browseStrength, setBrowseStrength] = useState('')
   const [showStrengthDropdown, setShowStrengthDropdown] = useState(false)
 
+  // About editing
+  const [editingAbout, setEditingAbout] = useState(false)
+  const [aboutDraft, setAboutDraft] = useState('')
+  const [savingAbout, setSavingAbout] = useState(false)
+  const [aboutMsg, setAboutMsg] = useState('')
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUser(session?.user ?? null)
+      if (session?.user) loadUserRole(session.user.id)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setCurrentUser(session?.user ?? null)
+      if (session?.user) loadUserRole(session.user.id)
+      else { setCurrentUserRole(null); setIsApprovedRep(false) }
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  async function loadUserRole(userId: string) {
+    const { data } = await supabase.from('users').select('role').eq('id', userId).single()
+    setCurrentUserRole(data?.role ?? null)
+    if (data?.role === 'brand') checkRepStatus(userId)
+    if (data?.role === 'super_admin' || data?.role === 'moderator') setIsApprovedRep(true)
+  }
+
+  async function checkRepStatus(userId: string) {
+    const { data } = await supabase
+      .from('brand_rep_brands')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('brand_account_id', brandId)
+      .eq('status', 'approved')
+      .maybeSingle()
+    setIsApprovedRep(!!data)
+  }
 
   useEffect(() => { if (brandId) fetchAll() }, [brandId])
 
   async function fetchAll() {
     setLoading(true)
     const [brandRes, cigarsRes] = await Promise.all([
-      supabase.from('brand_accounts').select('id, name, country_of_origin, founded_year, description, logo_url, tier').eq('id', brandId).single(),
+      supabase.from('brand_accounts').select('id, name, country_of_origin, founded_year, description, about, about_updated_by, about_updated_at, logo_url, tier').eq('id', brandId).single(),
       supabase.from('cigars').select('id, name, line, vitola, strength, wrapper_origin, msrp, status').eq('brand_account_id', brandId).eq('status', 'live').order('name'),
     ])
-    if (brandRes.data) setBrand(brandRes.data)
+    if (brandRes.data) {
+      setBrand(brandRes.data as unknown as Brand)
+      setAboutDraft(brandRes.data.about || brandRes.data.description || '')
+    }
     if (cigarsRes.data) {
       setAllCigars(cigarsRes.data)
       buildLines(cigarsRes.data)
@@ -185,6 +220,22 @@ export default function BrandPage() {
     setDiscoverCigars([...cigars].sort(() => Math.random() - 0.5).slice(0, 3))
   }
 
+  async function saveAbout() {
+    if (!brand || !currentUser) return
+    setSavingAbout(true)
+    setAboutMsg('')
+    const { error } = await supabase.from('brand_accounts').update({
+      about: aboutDraft.trim() || null,
+      about_updated_by: currentUser.id,
+      about_updated_at: new Date().toISOString(),
+    }).eq('id', brandId)
+    setSavingAbout(false)
+    if (error) { setAboutMsg(`Error: ${error.message}`); return }
+    setBrand(prev => prev ? { ...prev, about: aboutDraft.trim() || null, about_updated_by: currentUser.id } : prev)
+    setEditingAbout(false)
+    setAboutMsg('About section updated.')
+  }
+
   function shuffleDiscover() {
     setDiscoverLoading(true)
     setDiscoverCigars([...allCigars].sort(() => Math.random() - 0.5).slice(0, 3))
@@ -209,11 +260,13 @@ export default function BrandPage() {
     </div>
   )
 
+  const aboutText = brand.about || brand.description
+  const aboutIsFromBrand = !!brand.about_updated_by
+
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
       <Header />
 
-      {/* Breadcrumb */}
       <div style={{ background: '#f0e8dc', padding: '10px 32px', fontSize: 13, color: '#8b5e2a' }}>
         <a href="/" style={{ color: '#8b5e2a', textDecoration: 'none' }}>Browse</a>
         <span style={{ margin: '0 8px' }}>›</span>
@@ -222,7 +275,6 @@ export default function BrandPage() {
         <span style={{ color: '#1a0a00', fontWeight: 500 }}>{brand.name}</span>
       </div>
 
-      {/* Brand hero */}
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '32px 32px 0' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 24 }}>
@@ -232,7 +284,12 @@ export default function BrandPage() {
                 : <span style={{ fontSize: 32 }}>🍂</span>}
             </div>
             <div style={{ flex: 1 }}>
-              <h1 style={{ color: '#f5e6c8', fontSize: 28, fontWeight: 700, margin: '0 0 6px' }}>{brand.name}</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <h1 style={{ color: '#f5e6c8', fontSize: 28, fontWeight: 700, margin: 0 }}>{brand.name}</h1>
+                {isApprovedRep && (
+                  <span style={{ fontSize: 11, background: '#c4a96a', color: '#1a0a00', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em' }}>VERIFIED</span>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 {brand.country_of_origin && <span style={{ color: '#c4a96a', fontSize: 13 }}>🌍 {brand.country_of_origin}</span>}
                 {brand.founded_year && <span style={{ color: '#c4a96a', fontSize: 13 }}>📅 Est. {brand.founded_year}</span>}
@@ -240,29 +297,27 @@ export default function BrandPage() {
                 {lines.length > 0 && <span style={{ color: '#c4a96a', fontSize: 13 }}>📋 {lines.length} lines</span>}
               </div>
             </div>
-            {currentUser && (
-              <button
-                onClick={() => setShowReportError(true)}
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(196,169,106,0.3)', color: '#c4a96a', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 }}
-              >
-                Report an Error
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+              {isApprovedRep && (
+                <a href="/brand-rep/setup" style={{ background: 'rgba(196,169,106,0.2)', border: '1px solid rgba(196,169,106,0.4)', color: '#c4a96a', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' as const }}>
+                  My Rep Profile
+                </a>
+              )}
+              {currentUser && (
+                <button onClick={() => setShowReportError(true)}
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(196,169,106,0.3)', color: '#c4a96a', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>
+                  Report an Error
+                </button>
+              )}
+            </div>
           </div>
 
           {showReportError && currentUser && (
             <div style={{ marginBottom: 20 }}>
-              <ReportError
-                targetType="brand"
-                targetId={brand.id}
-                targetName={brand.name}
-                userId={currentUser.id}
-                onClose={() => setShowReportError(false)}
-              />
+              <ReportError targetType="brand" targetId={brand.id} targetName={brand.name} userId={currentUser.id} onClose={() => setShowReportError(false)} />
             </div>
           )}
 
-          {/* Nav tabs */}
           <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(196,169,106,0.2)' }}>
             {([
               { key: 'cigars', label: 'Cigars' },
@@ -282,10 +337,8 @@ export default function BrandPage() {
         </div>
       </div>
 
-      {/* Main content */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '32px 24px 48px' }}>
 
-        {/* ===== CIGARS — highlights ===== */}
         {activeSection === 'cigars' && !showBrowseAll && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, padding: '16px 24px', background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0' }}>
@@ -298,13 +351,12 @@ export default function BrandPage() {
                 Browse All →
               </button>
             </div>
-            <ScrollRow title="🆕 Newest Additions" cigars={newestCigars} badge="NEW" />
+            <ScrollRow title="🆕 Newest Additions" cigars={newestCigars} />
             {highestRated.length > 0 && <ScrollRow title="⭐ Highest Rated" cigars={highestRated} />}
             <ScrollRow title="🎲 Surprise Me" cigars={discoverCigars} onShuffle={shuffleDiscover} shuffling={discoverLoading} />
           </div>
         )}
 
-        {/* ===== BROWSE ALL ===== */}
         {activeSection === 'cigars' && showBrowseAll && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -347,7 +399,6 @@ export default function BrandPage() {
           </div>
         )}
 
-        {/* ===== LINES ===== */}
         {activeSection === 'lines' && (
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 24px' }}>Lines & Collections</h1>
@@ -371,46 +422,93 @@ export default function BrandPage() {
           </div>
         )}
 
-        {/* ===== ABOUT ===== */}
         {activeSection === 'about' && (
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 24px' }}>About {brand.name}</h1>
-            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 32 }}>
-              {brand.description
-                ? <p style={{ fontSize: 15, color: '#333', lineHeight: 1.8, margin: 0 }}>{brand.description}</p>
-                : <div style={{ textAlign: 'center', padding: '40px 0', color: '#aaa' }}>
-                    <p style={{ fontSize: 16, marginBottom: 8 }}>No description yet</p>
-                    <p style={{ fontSize: 13 }}>Brand owners can add their story here</p>
-                  </div>
-              }
-              <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid #f0e8dc', display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-                {brand.country_of_origin && (
-                  <div>
-                    <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Country</p>
-                    <p style={{ fontSize: 15, color: '#1a0a00', fontWeight: 500, margin: 0 }}>{brand.country_of_origin}</p>
-                  </div>
-                )}
-                {brand.founded_year && (
-                  <div>
-                    <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Founded</p>
-                    <p style={{ fontSize: 15, color: '#1a0a00', fontWeight: 500, margin: 0 }}>{brand.founded_year}</p>
-                  </div>
-                )}
-                <div>
-                  <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Cigars in Database</p>
-                  <p style={{ fontSize: 15, color: '#1a0a00', fontWeight: 500, margin: 0 }}>{allCigars.length}</p>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: 0 }}>About {brand.name}</h1>
+              {isApprovedRep && !editingAbout && (
+                <button onClick={() => setEditingAbout(true)}
+                  style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #d4b896', background: '#fff', color: '#5a3a1a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  ✏ Edit About
+                </button>
+              )}
+            </div>
+
+            {aboutMsg && (
+              <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#2e7d32', fontWeight: 600 }}>
+                ✓ {aboutMsg}
               </div>
+            )}
+
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 32 }}>
+              {editingAbout ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, background: '#c4a96a', color: '#1a0a00', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.05em' }}>EDITING AS BRAND REP</span>
+                    <span style={{ fontSize: 12, color: '#aaa' }}>This will be marked "From the Brand" once saved</span>
+                  </div>
+                  <textarea
+                    value={aboutDraft}
+                    onChange={e => setAboutDraft(e.target.value)}
+                    rows={10}
+                    placeholder="Tell the CigarDex community about your brand — your story, your philosophy, what makes your cigars unique..."
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif', lineHeight: 1.7, marginBottom: 14 }}
+                  />
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={saveAbout} disabled={savingAbout}
+                      style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#1a0a00', color: '#f5e6c8', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: savingAbout ? 0.7 : 1 }}>
+                      {savingAbout ? 'Saving...' : 'Save'}
+                    </button>
+                    <button onClick={() => { setEditingAbout(false); setAboutDraft(brand.about || brand.description || '') }}
+                      style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #d4b896', background: '#fff', color: '#5a3a1a', fontSize: 14, cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {aboutIsFromBrand && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, background: '#1a0a00', color: '#c4a96a', padding: '2px 10px', borderRadius: 4, letterSpacing: '0.05em' }}>FROM THE BRAND</span>
+                      <span style={{ fontSize: 12, color: '#aaa' }}>Written by a verified brand representative</span>
+                    </div>
+                  )}
+                  {aboutText
+                    ? <p style={{ fontSize: 15, color: '#333', lineHeight: 1.8, margin: 0 }}>{aboutText}</p>
+                    : <div style={{ textAlign: 'center', padding: '40px 0', color: '#aaa' }}>
+                        <p style={{ fontSize: 16, marginBottom: 8 }}>No description yet</p>
+                        <p style={{ fontSize: 13 }}>Brand representatives can add their story here</p>
+                      </div>
+                  }
+                  <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid #f0e8dc', display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+                    {brand.country_of_origin && (
+                      <div>
+                        <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Country</p>
+                        <p style={{ fontSize: 15, color: '#1a0a00', fontWeight: 500, margin: 0 }}>{brand.country_of_origin}</p>
+                      </div>
+                    )}
+                    {brand.founded_year && (
+                      <div>
+                        <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Founded</p>
+                        <p style={{ fontSize: 15, color: '#1a0a00', fontWeight: 500, margin: 0 }}>{brand.founded_year}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>Cigars in Database</p>
+                      <p style={{ fontSize: 15, color: '#1a0a00', fontWeight: 500, margin: 0 }}>{allCigars.length}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* ===== HISTORY ===== */}
         {activeSection === 'history' && (
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 24px' }}>Brand History</h1>
-           <CigarTimeline targetType="brand" targetId={brandId} userId={currentUser?.id ?? null} />
-                    </div>
+            <CigarTimeline targetType="brand" targetId={brandId} userId={currentUser?.id ?? null} userRole={currentUserRole} />
+          </div>
         )}
 
       </div>

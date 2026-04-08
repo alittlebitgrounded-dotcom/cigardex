@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-type Section = 'cigars' | 'brands' | 'users' | 'moderation' | 'characteristics' | 'stores' | 'reviews' | 'applications' | 'feedback' | 'timeline' | 'awards'
+type Section = 'cigars' | 'brands' | 'users' | 'moderation' | 'characteristics' | 'stores' | 'awards' | 'reviews' | 'applications' | 'feedback' | 'timeline' | 'brand_reps'
 
 type IndustryApplication = {
   id: string; name: string; email: string; company: string; role_type: string
@@ -158,6 +158,9 @@ export default function AdminPage() {
   const [newAwardDescription, setNewAwardDescription] = useState('')
   const [awardMsg, setAwardMsg] = useState('')
 
+  const [brandRepAssociations, setBrandRepAssociations] = useState<any[]>([])
+const [brandRepMsg, setBrandRepMsg] = useState('')
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (isAdmin) fetchSection(section) }, [section, isAdmin])
 
@@ -178,6 +181,7 @@ export default function AdminPage() {
         .order('created_at', { ascending: false }).limit(200)
       if (data) setCigars(data as unknown as Cigar[])
     }
+  
     if (s === 'brands') {
       const { data } = await supabase.from('brand_accounts').select('id, name, country_of_origin, suspended, tier, created_at').order('name')
       if (data) setBrands(data)
@@ -209,7 +213,8 @@ export default function AdminPage() {
     if (s === 'applications') await fetchApplications()
     if (s === 'feedback') await fetchFeedback()
     if (s === 'timeline') await fetchTimeline()
-    if (s === 'awards') await fetchAwards()
+   if (s === 'brand_reps') await fetchBrandReps()
+     if (s === 'awards') await fetchAwards()
     setLoading(false)
   }
 
@@ -690,6 +695,23 @@ export default function AdminPage() {
     setPendingAwards(prev => prev.filter(a => a.id !== id))
     setAwardMsg('Rejected.')
   }
+async function fetchBrandReps() {
+  const { data } = await supabase
+    .from('brand_rep_brands')
+    .select('id, status, created_at, user_id, brand_account_id, users(username, email), brand_accounts(name)')
+    .order('created_at', { ascending: true })
+  if (data) setBrandRepAssociations(data)
+}
+async function approveBrandRep(id: string) {
+  await supabase.from('brand_rep_brands').update({ status: 'approved' }).eq('id', id)
+  setBrandRepAssociations(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' } : a))
+  setBrandRepMsg('Approved.')
+}
+async function rejectBrandRep(id: string) {
+  await supabase.from('brand_rep_brands').delete().eq('id', id)
+  setBrandRepAssociations(prev => prev.filter(a => a.id !== id))
+  setBrandRepMsg('Rejected.')
+}
 
   if (!authChecked) return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
@@ -708,6 +730,7 @@ export default function AdminPage() {
     { key: 'users', label: '👤 Users' }, { key: 'moderation', label: '📋 Moderation' },
     { key: 'characteristics', label: '🏷 Characteristics' }, { key: 'stores', label: '🏪 Stores' },
     { key: 'awards', label: '🏅 Awards' }, { key: 'reviews', label: '📝 Reviews' },
+   { key: 'brand_reps', label: '🍂 Brand Reps' },
     { key: 'applications', label: '🏭 Applications' }, { key: 'feedback', label: '💬 Feedback' },
     { key: 'timeline', label: '📜 Timeline' },
   ] as const
@@ -1705,7 +1728,67 @@ export default function AdminPage() {
               )}
             </div>
           )}
-
+{section === 'brand_reps' && (
+  <div>
+    <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Brand Representatives</h1>
+    {brandRepMsg && (
+      <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>✓ {brandRepMsg}</span>
+        <button onClick={() => setBrandRepMsg('')} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: 16 }}>×</button>
+      </div>
+    )}
+    {/* Pending */}
+    {brandRepAssociations.filter(a => a.status === 'pending').length > 0 && (
+      <div style={{ background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e65100', margin: '0 0 14px' }}>⏳ Pending ({brandRepAssociations.filter(a => a.status === 'pending').length})</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {brandRepAssociations.filter(a => a.status === 'pending').map((a: any) => (
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '12px 16px', border: '1px solid #ffe0b2' }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', margin: '0 0 2px' }}>{(a.users as any)?.username} → {(a.brand_accounts as any)?.name}</p>
+                <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{(a.users as any)?.email} · {new Date(a.created_at).toLocaleDateString()}</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => approveBrandRep(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
+                <button onClick={() => rejectBrandRep(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fbe9e7', color: '#b71c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Reject</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    {/* Approved list */}
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: '#f5f0e8', borderBottom: '1px solid #e8ddd0' }}>
+            {['Rep', 'Email', 'Brand', 'Status', 'Actions'].map(h => (
+              <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#5a3a1a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {brandRepAssociations.filter(a => a.status === 'approved').map((a: any, i: number) => (
+            <tr key={a.id} style={{ borderBottom: '1px solid #f0e8dc', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+              <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: '#1a0a00' }}>{(a.users as any)?.username}</td>
+              <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{(a.users as any)?.email}</td>
+              <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{(a.brand_accounts as any)?.name}</td>
+              <td style={{ padding: '10px 14px' }}>
+                <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: '#e8f5e9', color: '#2e7d32', fontWeight: 600 }}>Approved</span>
+              </td>
+              <td style={{ padding: '10px 14px' }}>
+                <button onClick={() => rejectBrandRep(a.id)} style={btnDanger}>Revoke</button>
+              </td>
+            </tr>
+          ))}
+          {brandRepAssociations.filter(a => a.status === 'approved').length === 0 && (
+            <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#aaa' }}>No approved brand reps yet</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
           {msg && <p style={{ marginTop: 16, color: '#2e7d32', fontSize: 13 }}>{msg}</p>}
         </main>
       </div>
