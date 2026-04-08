@@ -42,7 +42,17 @@ export default function Header() {
       setUserProfile(data)
       if (INDUSTRY_ROLES.includes(data.role)) {
         const dismissed = sessionStorage.getItem(`role_banner_dismissed_${userId}`)
-        if (!dismissed) setShowRoleBanner(true)
+       if (!dismissed) {
+          setShowRoleBanner(true)
+          // Redirect to /pro on first login if not already there
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/pro')) {
+            const firstLogin = sessionStorage.getItem(`pro_redirected_${userId}`)
+            if (!firstLogin) {
+              sessionStorage.setItem(`pro_redirected_${userId}`, 'true')
+              window.location.href = '/pro'
+            }
+          }
+        }
       }
     }
   }
