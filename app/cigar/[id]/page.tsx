@@ -63,7 +63,8 @@ type Review = {
   smoked_at: string | null
   created_at: string | null
   updated_at: string | null
-  users: { username: string } | null
+  source_url?: string | null
+  users: { username: string; publication_name: string | null; role: string } | null
 }
 
 type Inventory = {
@@ -207,7 +208,7 @@ export default function CigarDetailPage() {
     const [cigarRes, historyRes, reviewRes, inventoryRes, charRes, designationRes] = await Promise.all([
       supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, description, logo_url)').eq('id', id).single(),
       supabase.from('cigar_history').select('id, event_type, description, event_date').eq('cigar_id', id).eq('status', 'approved').order('event_date', { ascending: false }),
-      supabase.from('reviews').select('id, user_id, cigar_id, rating, notes, draw_score, burn_score, construction_score, value_score, occasion, revision_notes, smoked_at, created_at, updated_at').eq('cigar_id', id).order('created_at', { ascending: false }),
+      supabase.from('reviews').select('id, user_id, cigar_id, rating, notes, draw_score, burn_score, construction_score, value_score, occasion, revision_notes, smoked_at, created_at, updated_at, source_url').eq('cigar_id', id).order('created_at', { ascending: false }),
       supabase.from('inventory').select('id, in_stock, price, url, stores(name, type, city, state, website_url, store_designations(retailer_designations(name, description)))').eq('cigar_id', id),
       supabase.from('cigar_characteristics').select('id, vote_count, characteristics(canonical_name, category)').eq('cigar_id', id).order('vote_count', { ascending: false }),
       supabase.from('cigar_designations').select('id, retailer_designations(name, description)').eq('cigar_id', id),
@@ -219,14 +220,16 @@ export default function CigarDetailPage() {
     if (reviewRes.data) {
       const rawReviews = reviewRes.data as unknown as Review[]
       const userIds = rawReviews.map(r => r.user_id).filter((id): id is string => Boolean(id))
-      let usernameMap: Record<string, string> = {}
+      const userDataMap: Record<string, { username: string; publication_name: string | null; role: string }> = {}
       if (userIds.length > 0) {
-        const { data: userRows } = await supabase.from('users').select('id, username').in('id', userIds)
-        if (userRows) usernameMap = Object.fromEntries(userRows.map(u => [u.id, u.username]))
+        const { data: userRows } = await supabase.from('users').select('id, username, publication_name, role').in('id', userIds)
+        if (userRows) userRows.forEach((u: any) => {
+          userDataMap[u.id] = { username: u.username, publication_name: u.publication_name || null, role: u.role }
+        })
       }
       setReviews(rawReviews.map(r => ({
         ...r,
-        users: r.user_id && usernameMap[r.user_id] ? { username: usernameMap[r.user_id] } : null,
+        users: r.user_id && userDataMap[r.user_id] ? userDataMap[r.user_id] : null,
       })))
     }
 
@@ -254,14 +257,14 @@ export default function CigarDetailPage() {
     return 'In-Store & Online'
   }
 
- function priceTier(msrp: number | null): string | null {
-  if (!msrp) return null
-  if (msrp < 5) return '$'
-  if (msrp < 10) return '$$'
-  if (msrp < 20) return '$$$'
-  if (msrp < 50) return '$$$$'
-  return '$$$$$'
-}
+  function priceTier(msrp: number | null): string | null {
+    if (!msrp) return null
+    if (msrp < 5) return '$'
+    if (msrp < 10) return '$$'
+    if (msrp < 20) return '$$$'
+    if (msrp < 50) return '$$$$'
+    return '$$$$$'
+  }
 
   function scoreBar(label: string, value: number | null) {
     if (!value) return null
@@ -310,14 +313,14 @@ export default function CigarDetailPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* Toast */}
       {toastMessage && (
         <div style={{ position: 'fixed', top: 80, right: 24, background: '#1a0a00', color: '#f5e6c8', padding: '12px 16px', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 1000, fontSize: 14, fontWeight: 600 }}>
           {toastMessage}
         </div>
       )}
 
- <Header />
+      <Header />
+
       {/* Breadcrumb */}
       <div style={{ background: '#f0e8dc', padding: '10px 32px', fontSize: 13, color: '#8b5e2a' }}>
         <a href="/" style={{ color: '#8b5e2a', textDecoration: 'none' }}>Browse</a>
@@ -330,10 +333,10 @@ export default function CigarDetailPage() {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 32 }}>
 
-          {/* ── Left column ── */}
+          {/* Left column */}
           <div>
 
-            {/* Main tab bar: Overview | Timeline */}
+            {/* Main tab bar */}
             <div style={{ display: 'flex', borderBottom: '2px solid #e8ddd0', marginBottom: 24 }}>
               {(['overview', 'timeline'] as const).map(tab => (
                 <button key={tab} onClick={() => setMainTab(tab)} style={{
@@ -349,7 +352,7 @@ export default function CigarDetailPage() {
               ))}
             </div>
 
-            {/* ── Overview tab ── */}
+            {/* Overview tab */}
             {mainTab === 'overview' && (
               <div>
                 {/* Main card */}
@@ -406,12 +409,12 @@ export default function CigarDetailPage() {
                           <div style={{ color: '#aaa', fontSize: 13 }}>No reviews yet</div>
                         )}
 
-{cigar.msrp && (
-  <div>
-    <div style={{ fontSize: 26, fontWeight: 700, color: '#1a0a00', letterSpacing: 2 }}>{priceTier(cigar.msrp)}</div>
-    <div style={{ fontSize: 12, color: '#8b5e2a' }}>Price range</div>
-  </div>
-)}
+                        {cigar.msrp && (
+                          <div>
+                            <div style={{ fontSize: 26, fontWeight: 700, color: '#1a0a00', letterSpacing: 2 }}>{priceTier(cigar.msrp)}</div>
+                            <div style={{ fontSize: 12, color: '#8b5e2a' }}>Price range</div>
+                          </div>
+                        )}
 
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                           {currentUser ? (
@@ -453,7 +456,9 @@ export default function CigarDetailPage() {
                     </div>
                   </div>
 
-<ReviewForm
+                  {/* Review form — only when open and logged in */}
+                  {showReviewForm && currentUser && (
+                    <ReviewForm
                       cigarId={cigar.id}
                       cigarName={cigar.name}
                       userId={currentUser.id}
@@ -462,7 +467,7 @@ export default function CigarDetailPage() {
                       onSaved={() => { setShowReviewForm(false); fetchAll() }}
                       onCancel={() => setShowReviewForm(false)}
                     />
-      
+                  )}
 
                   {/* Suggest edit form */}
                   {showSuggestEdit && currentUser && (
@@ -505,7 +510,7 @@ export default function CigarDetailPage() {
                   </div>
                 )}
 
-                {/* Content tabs: Reviews | Where to Buy | History */}
+                {/* Content tabs */}
                 <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', borderBottom: '1px solid #e8ddd0' }}>
                     {([['reviews', 'Reviews'], ['inventory', 'Where to Buy'], ['history', 'History']] as const).map(([key, label]) => (
@@ -525,6 +530,7 @@ export default function CigarDetailPage() {
                   </div>
 
                   <div style={{ padding: 24 }}>
+
                     {/* Reviews */}
                     {contentTab === 'reviews' && (
                       reviews.length === 0 ? (
@@ -536,9 +542,27 @@ export default function CigarDetailPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                           {reviews.map(r => (
                             <div key={r.id} style={{ borderBottom: '1px solid #f0e8dc', paddingBottom: 24 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <span style={{ fontWeight: 600, color: '#1a0a00', fontSize: 15 }}>{r.users?.username || 'Anonymous'}</span>
-                                {r.rating && <span style={{ fontSize: 28, fontWeight: 700, color: '#1a0a00' }}>{r.rating.toFixed(1)}<span style={{ fontSize: 13, color: '#aaa' }}>/10</span></span>}
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+                                    <span style={{ fontWeight: 700, color: '#1a0a00', fontSize: 15 }}>
+                                      {r.users?.username || 'Anonymous'}
+                                      {r.users?.publication_name && (
+                                        <span style={{ fontWeight: 400, color: '#8b5e2a' }}> — {r.users.publication_name}</span>
+                                      )}
+                                    </span>
+                                    {r.users?.role === 'reviewer' && (
+                                      <span style={{ fontSize: 10, fontWeight: 700, background: '#1a0a00', color: '#c4a96a', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.05em' }}>PRESS</span>
+                                    )}
+                                  </div>
+                                  {r.source_url && (
+                                    <a href={r.source_url} target="_blank" rel="noopener noreferrer"
+                                      style={{ fontSize: 12, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>
+                                      Read full review →
+                                    </a>
+                                  )}
+                                </div>
+                                {r.rating && <span style={{ fontSize: 28, fontWeight: 700, color: '#1a0a00', flexShrink: 0 }}>{r.rating.toFixed(1)}<span style={{ fontSize: 13, color: '#aaa' }}>/10</span></span>}
                               </div>
                               {r.notes && <p style={{ color: '#444', fontSize: 14, lineHeight: 1.7, margin: '0 0 14px' }}>{r.notes}</p>}
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px', marginBottom: 12 }}>
@@ -639,7 +663,7 @@ export default function CigarDetailPage() {
               </div>
             )}
 
-            {/* ── Timeline tab ── */}
+            {/* Timeline tab */}
             {mainTab === 'timeline' && (
               <CigarTimeline
                 cigarId={cigar.id}
@@ -650,7 +674,7 @@ export default function CigarDetailPage() {
 
           </div>
 
-          {/* ── Sidebar ── */}
+          {/* Sidebar */}
           <div>
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 24, position: 'sticky', top: 88 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Specifications</h2>
@@ -663,7 +687,7 @@ export default function CigarDetailPage() {
                 ['Binder', cigar.binder_origin],
                 ['Filler', cigar.filler_origins],
                 ['UPC', cigar.upc],
-               ['Price Range', priceTier(cigar.msrp)],
+                ['Price Range', priceTier(cigar.msrp)],
                 ['Sold As', cigar.sold_as],
               ].filter(([, val]) => val).map(([label, val]) => (
                 <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0e8dc' }}>
