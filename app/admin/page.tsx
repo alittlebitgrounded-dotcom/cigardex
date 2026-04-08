@@ -11,6 +11,7 @@ type IndustryApplication = {
   phone: string | null; website: string | null; message: string | null
   status: string; admin_note: string | null; created_at: string
   designations: string[] | null
+  instagram: string | null; youtube: string | null; podcast: string | null
   _matched?: boolean
 }
 
@@ -312,6 +313,16 @@ export default function AdminPage() {
       if (userRow) {
    const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : app.role_type === 'reviewer' ? 'reviewer' : 'premium'
         await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
+   // Populate publication/social fields from application
+      const socialUrls: Record<string, string> = {}
+      if (app.instagram) socialUrls.instagram = app.instagram
+      if (app.youtube) socialUrls.youtube = app.youtube
+      if (app.podcast) socialUrls.podcast = app.podcast
+      await supabase.from('users').update({
+        publication_name: app.company || null,
+        publication_url: app.website || null,
+        social_urls: Object.keys(socialUrls).length > 0 ? socialUrls : null,
+      }).eq('id', userRow.id)
         if (app.role_type === 'retailer') {
           const { data: existingAccount } = await supabase.from('store_accounts').select('id').eq('user_id', userRow.id).maybeSingle()
           let storeId: string | null = null

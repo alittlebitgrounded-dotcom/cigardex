@@ -10,7 +10,7 @@ const STORE_HONORS = [
   'PCA Member',
   'TAA Member',
   'Drew Diplomat',
-  'Davidoff White Label',
+  'Davidoff Gold Label',
   'Opus X Authorized Retailer',
 ]
 
@@ -105,8 +105,15 @@ export default function IndustryPage() {
   const [showForm, setShowForm] = useState(false)
   const [selectedHonors, setSelectedHonors] = useState<string[]>([])
   const [form, setForm] = useState({
-    name: '', email: '', company: '',
-    website: '', social: '', message: '',
+    name: '',
+    email: '',
+    company: '',
+    website: '',
+    instagram: '',
+    youtube: '',
+    podcast: '',
+    other_social: '',
+    message: '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -149,12 +156,12 @@ export default function IndustryPage() {
       company: form.company,
       role_type: selectedRole,
       website: form.website || null,
-      // Store designations as a proper array — not in message field
+      publication_url: form.website || null,
+      instagram: form.instagram || null,
+      youtube: form.youtube || null,
+      podcast: form.podcast || null,
       designations: selectedHonors.length > 0 ? selectedHonors : null,
-      message: [
-        form.message,
-        form.social ? `Social/publication: ${form.social}` : '',
-      ].filter(Boolean).join('\n\n') || null,
+      message: form.message || null,
       status: 'pending',
     })
     if (err) {
@@ -172,6 +179,9 @@ export default function IndustryPage() {
     boxSizing: 'border-box', background: '#fff', color: '#1a0a00',
     fontFamily: 'system-ui, sans-serif',
   }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600,
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -188,8 +198,8 @@ export default function IndustryPage() {
           We're building the most complete cigar database on the internet. Industry members get verified status, direct platform access, and tools built around how you actually work.
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-    {['Verified badge', 'Role-specific tools', 'Direct platform access'].map(tag => (
-              <span key={tag} style={{
+          {['Verified badge', 'Role-specific tools', 'Direct platform access'].map(tag => (
+            <span key={tag} style={{
               background: 'rgba(196,169,106,0.15)', border: '1px solid rgba(196,169,106,0.4)',
               color: '#c4a96a', fontSize: 12, fontWeight: 600,
               padding: '5px 14px', borderRadius: 20, letterSpacing: '0.04em',
@@ -242,7 +252,7 @@ export default function IndustryPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
                 {ROLES.map(role => (
-                  <RoleCard key={role.value} role={role} selected={selectedRole === role.value} onSelect={() => { setSelectedRole(role.value); setShowForm(true) }} />
+                  <RoleCard key={role.value} role={role} selected={selectedRole === role.value} onSelect={() => { setSelectedRole(role.value); setShowForm(true); setSelectedHonors([]) }} />
                 ))}
               </div>
             </div>
@@ -258,76 +268,134 @@ export default function IndustryPage() {
                 <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e8ddd0', padding: 32, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
+                    {/* Name + Email */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                       <div>
-                        <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>Your Name *</label>
+                        <label style={labelStyle}>Your Name *</label>
                         <input value={form.name} onChange={field('name')} style={inputStyle} />
                       </div>
                       <div>
-                        <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>Professional Email *</label>
+                        <label style={labelStyle}>Professional Email *</label>
                         <input type="email" value={form.email} onChange={field('email')} placeholder="you@yourcompany.com" style={inputStyle} />
                         <p style={{ fontSize: 11, color: '#b71c1c', margin: '6px 0 0', lineHeight: 1.5, fontWeight: 500 }}>
-                          ⚠️ Use the professional email you want on your CigarDex account. This email is tied to your approval and <strong>cannot be changed afterwards</strong> without contacting us.
+                          ⚠️ Use the professional email you want on your CigarDex account. This email is tied to your approval and <strong>cannot be changed afterwards</strong>.
                         </p>
                       </div>
                     </div>
 
+                    {/* Company/Publication name */}
                     <div>
-                      <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
+                      <label style={labelStyle}>
                         {selectedRole === 'retailer' ? 'Store Name *' : selectedRole === 'brand' ? 'Brand Name *' : 'Publication / Channel Name *'}
                       </label>
                       <input value={form.company} onChange={field('company')} style={inputStyle} />
                     </div>
 
+                    {/* Website — all roles */}
                     <div>
-                      <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
-                        Website <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span>
+                      <label style={labelStyle}>
+                        {selectedRole === 'reviewer' ? 'Main Website or Channel URL' : 'Website'}
+                        <span style={{ color: '#bbb', fontWeight: 400 }}> (optional)</span>
                       </label>
                       <input value={form.website} onChange={field('website')} placeholder="https://..." style={inputStyle} />
                     </div>
 
+                    {/* Reviewer socials */}
                     {selectedRole === 'reviewer' && (
-                      <div>
-                        <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
-                          YouTube, Instagram, or publication URL <span style={{ color: '#bbb', fontWeight: 400 }}>(optional but helpful)</span>
-                        </label>
-                        <input value={form.social} onChange={field('social')} placeholder="https://youtube.com/@yourchannel" style={inputStyle} />
-                      </div>
-                    )}
-
-                    {selectedRole === 'retailer' && (
-                      <div>
-                        <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
-                          Industry Honors & Designations <span style={{ color: '#bbb', fontWeight: 400 }}>(select all that apply)</span>
-                        </label>
-                        <p style={{ fontSize: 12, color: '#aaa', margin: '0 0 10px', fontStyle: 'italic' }}>
-                          These will be shown on your store profile after verification. You can manage them from your dashboard after approval.
+                      <div style={{ background: '#faf8f5', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20 }}>
+                        <label style={{ ...labelStyle, marginBottom: 4 }}>Your channels & socials</label>
+                        <p style={{ fontSize: 12, color: '#aaa', margin: '0 0 14px', fontStyle: 'italic' }}>
+                          These will be saved to your reviewer profile. Add whichever apply.
                         </p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                          {STORE_HONORS.map(honor => {
-                            const active = selectedHonors.includes(honor)
-                            return (
-                              <button key={honor} onClick={() => toggleHonor(honor)} style={{
-                                padding: '6px 14px', borderRadius: 20, fontSize: 13,
-                                cursor: 'pointer', fontWeight: active ? 700 : 400,
-                                border: active ? '2px solid #1a0a00' : '1px solid #d4b896',
-                                background: active ? '#f5f0e8' : '#fff',
-                                color: active ? '#1a0a00' : '#5a3a1a',
-                                transition: 'all 0.12s',
-                              }}>
-                                {active ? '✓ ' : ''}{honor}
-                              </button>
-                            )
-                          })}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div>
+                            <label style={{ ...labelStyle, fontWeight: 400 }}>Instagram</label>
+                            <input value={form.instagram} onChange={field('instagram')} placeholder="https://instagram.com/yourchannel" style={inputStyle} />
+                          </div>
+                          <div>
+                            <label style={{ ...labelStyle, fontWeight: 400 }}>YouTube</label>
+                            <input value={form.youtube} onChange={field('youtube')} placeholder="https://youtube.com/@yourchannel" style={inputStyle} />
+                          </div>
+                          <div>
+                            <label style={{ ...labelStyle, fontWeight: 400 }}>Podcast</label>
+                            <input value={form.podcast} onChange={field('podcast')} placeholder="https://..." style={inputStyle} />
+                          </div>
+                          <div>
+                            <label style={{ ...labelStyle, fontWeight: 400 }}>Other</label>
+                            <input value={form.other_social} onChange={field('other_social')} placeholder="Any other link..." style={inputStyle} />
+                          </div>
                         </div>
-                        <p style={{ fontSize: 11, color: '#bbb', margin: '8px 0 0', fontStyle: 'italic' }}>
-                          Don't see yours? Add it in the message below — or from your dashboard after approval.
-                        </p>
                       </div>
                     )}
 
+                    {/* Store socials */}
+                    {selectedRole === 'retailer' && (
+                      <>
+                        <div style={{ background: '#faf8f5', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20 }}>
+                          <label style={{ ...labelStyle, marginBottom: 4 }}>Social media</label>
+                          <p style={{ fontSize: 12, color: '#aaa', margin: '0 0 14px', fontStyle: 'italic' }}>Optional — shown on your store profile.</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div>
+                              <label style={{ ...labelStyle, fontWeight: 400 }}>Instagram</label>
+                              <input value={form.instagram} onChange={field('instagram')} placeholder="https://instagram.com/yourstore" style={inputStyle} />
+                            </div>
+                            <div>
+                              <label style={{ ...labelStyle, fontWeight: 400 }}>Facebook / Other</label>
+                              <input value={form.other_social} onChange={field('other_social')} placeholder="https://..." style={inputStyle} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Honors */}
+                        <div>
+                          <label style={{ ...labelStyle, marginBottom: 4 }}>Industry Honors & Designations <span style={{ color: '#bbb', fontWeight: 400 }}>(select all that apply)</span></label>
+                          <p style={{ fontSize: 12, color: '#aaa', margin: '0 0 10px', fontStyle: 'italic' }}>
+                            These will be shown on your store profile after verification.
+                          </p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {STORE_HONORS.map(honor => {
+                              const active = selectedHonors.includes(honor)
+                              return (
+                                <button key={honor} onClick={() => toggleHonor(honor)} style={{
+                                  padding: '6px 14px', borderRadius: 20, fontSize: 13,
+                                  cursor: 'pointer', fontWeight: active ? 700 : 400,
+                                  border: active ? '2px solid #1a0a00' : '1px solid #d4b896',
+                                  background: active ? '#f5f0e8' : '#fff',
+                                  color: active ? '#1a0a00' : '#5a3a1a',
+                                }}>
+                                  {active ? '✓ ' : ''}{honor}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p style={{ fontSize: 11, color: '#bbb', margin: '8px 0 0', fontStyle: 'italic' }}>
+                            Don't see yours? Add it in the message below — or from your dashboard after approval.
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Brand socials */}
+                    {selectedRole === 'brand' && (
+                      <div style={{ background: '#faf8f5', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20 }}>
+                        <label style={{ ...labelStyle, marginBottom: 4 }}>Brand social media</label>
+                        <p style={{ fontSize: 12, color: '#aaa', margin: '0 0 14px', fontStyle: 'italic' }}>Optional — shown on your brand profile.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div>
+                            <label style={{ ...labelStyle, fontWeight: 400 }}>Instagram</label>
+                            <input value={form.instagram} onChange={field('instagram')} placeholder="https://instagram.com/yourbrand" style={inputStyle} />
+                          </div>
+                          <div>
+                            <label style={{ ...labelStyle, fontWeight: 400 }}>Facebook / Other</label>
+                            <input value={form.other_social} onChange={field('other_social')} placeholder="https://..." style={inputStyle} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Message */}
                     <div>
-                      <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>
+                      <label style={labelStyle}>
                         Anything else you'd like us to know <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span>
                       </label>
                       <textarea
@@ -369,7 +437,6 @@ export default function IndustryPage() {
           </div>
         )}
       </div>
-
       <Footer />
     </div>
   )
