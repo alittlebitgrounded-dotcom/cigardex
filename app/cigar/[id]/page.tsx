@@ -11,6 +11,7 @@ import humidorIcon from '../../images/humidor.png'
 import ReportError from '@/components/ReportError'
 import CigarTimeline from '@/components/CigarTimeline'
 import Footer from '@/components/Footer'
+import Header from '@/components/Header'
 
 type Cigar = {
   id: string
@@ -316,22 +317,7 @@ export default function CigarDetailPage() {
         </div>
       )}
 
-      {/* Header */}
-      <header style={{ background: '#1a0a00', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64, position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 22 }}>🍂</span>
-          <a href="/" style={{ color: '#f5e6c8', fontSize: 20, fontWeight: 700, letterSpacing: '0.03em', textDecoration: 'none' }}>CigarLog</a>
-        </div>
-        <nav style={{ display: 'flex', gap: 28 }}>
-          {['Browse', 'Brands', 'My Humidor', 'Sign In'].map(item => (
-            <a key={item} href={item === 'Browse' ? '/' : item === 'Brands' ? '/brands' : item === 'My Humidor' ? '/humidor' : '#'}
-              style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>
-              {item}
-            </a>
-          ))}
-        </nav>
-      </header>
-
+ <Header />
       {/* Breadcrumb */}
       <div style={{ background: '#f0e8dc', padding: '10px 32px', fontSize: 13, color: '#8b5e2a' }}>
         <a href="/" style={{ color: '#8b5e2a', textDecoration: 'none' }}>Browse</a>
@@ -467,17 +453,16 @@ export default function CigarDetailPage() {
                     </div>
                   </div>
 
-                  {/* Review form */}
-                  {showReviewForm && currentUser && (
-                    <ReviewForm
+<ReviewForm
                       cigarId={cigar.id}
                       cigarName={cigar.name}
                       userId={currentUser.id}
+                      userRole={currentUserRole ?? undefined}
                       existingReview={userReview as never}
                       onSaved={() => { setShowReviewForm(false); fetchAll() }}
                       onCancel={() => setShowReviewForm(false)}
                     />
-                  )}
+      
 
                   {/* Suggest edit form */}
                   {showSuggestEdit && currentUser && (

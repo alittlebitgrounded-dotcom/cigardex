@@ -310,7 +310,7 @@ export default function AdminPage() {
     try {
       const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
       if (userRow) {
-        const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : 'premium'
+   const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : app.role_type === 'reviewer' ? 'reviewer' : 'premium'
         await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
         if (app.role_type === 'retailer') {
           const { data: existingAccount } = await supabase.from('store_accounts').select('id').eq('user_id', userRow.id).maybeSingle()

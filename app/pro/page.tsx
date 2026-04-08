@@ -36,7 +36,6 @@ const ROLE_CONTENT: Record<string, {
     tools: [
       { icon: '🏪', label: 'My Store Profile', description: 'View and manage your public store page.', href: '/store/setup', available: true },
       { icon: '📦', label: 'Inventory', description: 'Manage which brands you carry.', href: '/store/inventory', available: true },
-      { icon: '📊', label: 'Analytics', description: 'See how many users are viewing your store page.', href: '/store/analytics', available: false },
     ],
     faq: [
       { q: 'How do I update my store address, phone, and hours?', a: 'Go to My Store Profile from the tools section below — you can edit all your store details there.' },
@@ -61,7 +60,6 @@ const ROLE_CONTENT: Record<string, {
       { icon: '🍂', label: 'My Brand Page', description: 'View and edit your public brand page.', href: '/brands', available: true },
       { icon: '📜', label: 'Timeline', description: 'Add history and milestones to your brand.', href: '/brands', available: true },
       { icon: '🍂', label: 'Cigar Catalog', description: 'View all cigars listed under your brand.', href: '/brands', available: true },
-      { icon: '📊', label: 'Analytics', description: 'See how users interact with your brand page.', href: '/brand/analytics', available: false },
     ],
     faq: [
       { q: 'How do I edit my brand\'s About section?', a: 'Go to your brand page and look for the edit option — it\'s available to verified brand reps.' },
@@ -77,15 +75,17 @@ const ROLE_CONTENT: Record<string, {
     unlocks: [
       { label: 'Verified reviewer badge', description: 'Shown on your profile and all your reviews.' },
       { label: 'Industry Review designation', description: 'Your reviews are marked separately from consumer ratings.' },
-      { label: 'Publication link', description: 'A link to your channel, blog, or publication on every review card.' },
+      { label: 'Full review link', description: 'Attach a URL to any review so readers can find your full write-up on your publication.' },
+      { label: 'Publication info on your profile', description: 'Your outlet name, website, and social links shown alongside your reviews.' },
     ],
     tools: [
-      { icon: '✍️', label: 'My Reviews', description: 'View all your reviews on CigarDex.', href: '/profile', available: true },
-      { icon: '👤', label: 'My Profile', description: 'Manage your public reviewer profile.', href: '/profile', available: true },
-      { icon: '📊', label: 'Review Analytics', description: 'See how your reviews are performing.', href: '/reviewer/analytics', available: false },
+      { icon: '✍️', label: 'My Reviewer Profile', description: 'Set your publication name, website, and social links.', href: '/reviewer/setup', available: true },
+      { icon: '👤', label: 'My Reviews', description: 'View all your reviews on CigarDex.', href: '/profile', available: true },
     ],
     faq: [
-      { q: 'How do I add my publication or channel link?', a: 'Contact us with your publication URL and we\'ll add it to your profile and review cards.' },
+      { q: 'How do I add my publication or channel link to my profile?', a: 'Go to My Reviewer Profile in the tools below and fill in your publication name, website, and any social links.' },
+      { q: 'How do I attach a link to a specific review?', a: 'When writing or editing a review, you\'ll see a "Full Review URL" field at the top — paste your link there. It shows as "Read full review →" on the review card.' },
+      { q: 'Who can see review source links?', a: 'Anyone viewing the cigar page can see and click your full review link. Only verified reviewers can add them.' },
       { q: 'What makes my reviews show as "Industry Review"?', a: 'All reviews from verified reviewer accounts are automatically tagged and distinguished from consumer ratings.' },
       { q: 'Can I change the email on my account?', a: 'Industry account emails are locked after approval. Contact us if you need to change it.' },
     ],
@@ -123,16 +123,13 @@ export default function ProPage() {
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
       <Header />
 
-      {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '48px 32px 40px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
             <span style={{ fontSize: 40 }}>{content.icon}</span>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <h1 style={{ color: '#f5e6c8', fontSize: 26, fontWeight: 700, margin: 0, fontFamily: 'Georgia, serif' }}>
-                  {content.title}
-                </h1>
+                <h1 style={{ color: '#f5e6c8', fontSize: 26, fontWeight: 700, margin: 0, fontFamily: 'Georgia, serif' }}>{content.title}</h1>
                 <span style={{ fontSize: 11, background: '#c4a96a', color: '#1a0a00', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em' }}>VERIFIED</span>
               </div>
               <p style={{ color: '#c4a96a', fontSize: 15, margin: 0 }}>{content.tagline}</p>
@@ -148,9 +145,7 @@ export default function ProPage() {
 
         {/* Membership unlocks */}
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: '0 0 18px', fontFamily: 'Georgia, serif' }}>
-            Your membership includes
-          </h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: '0 0 18px', fontFamily: 'Georgia, serif' }}>Your membership includes</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             {content.unlocks.map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -167,7 +162,7 @@ export default function ProPage() {
         {/* Tools */}
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
           <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>Your Tools</h2>
-          <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 18px' }}>Features available to your account. More coming soon.</p>
+          <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 18px' }}>Features available to your account.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             {content.tools.map((tool, i) => (
               <div key={i} style={{ background: tool.available ? '#faf8f5' : '#f5f5f5', border: `1px solid ${tool.available ? '#d4b896' : '#e8e8e8'}`, borderRadius: 10, padding: '16px 18px', opacity: tool.available ? 1 : 0.6 }}>
@@ -193,9 +188,7 @@ export default function ProPage() {
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', lineHeight: 1.4 }}>{item.q}</span>
                   <span style={{ color: '#c4a96a', fontSize: 18, flexShrink: 0, fontWeight: 300 }}>{openFaq === i ? '−' : '+'}</span>
                 </button>
-                {openFaq === i && (
-                  <p style={{ fontSize: 13, color: '#5a3a1a', lineHeight: 1.7, margin: '0 0 14px', paddingRight: 24 }}>{item.a}</p>
-                )}
+                {openFaq === i && <p style={{ fontSize: 13, color: '#5a3a1a', lineHeight: 1.7, margin: '0 0 14px', paddingRight: 24 }}>{item.a}</p>}
               </div>
             ))}
           </div>
@@ -205,9 +198,7 @@ export default function ProPage() {
         <div style={{ background: '#f5f0e8', borderRadius: 12, border: '1px solid #d4b896', padding: 24, textAlign: 'center' }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>Need help or have a question?</p>
           <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 14px' }}>We review every industry account personally. Reach out anytime.</p>
-          <a href="/feedback" style={{ display: 'inline-block', background: '#1a0a00', color: '#f5e6c8', padding: '10px 24px', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
-            Contact Us
-          </a>
+          <a href="/feedback" style={{ display: 'inline-block', background: '#1a0a00', color: '#f5e6c8', padding: '10px 24px', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>Contact Us</a>
         </div>
 
       </div>
