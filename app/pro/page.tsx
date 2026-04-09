@@ -53,8 +53,9 @@ const ROLE_CONTENT: Record<string, {
     unlocks: [
       { label: 'Verified brand badge', description: 'Shown on your brand page and all associated cigars.' },
       { label: 'Edit your brand About section', description: 'Write and update your brand\'s story directly.' },
-      { label: 'Direct timeline access', description: 'Submit timeline entries that go live without community review.' },
-      { label: 'Contact info on brand page', description: 'Your direct contact visible to retailers and enthusiasts.' },
+      { label: 'Direct timeline access', description: 'Submit timeline entries that go live immediately.' },
+ { label: 'Cigar Edits', description: 'Add or edit cigars manufactured by your brands.' },
+
     ],
 tools: [
   { icon: '🍂', label: 'My Brand Profile', description: 'Set your role and manage which brands you represent.', href: '/brand-rep/setup', available: true },
