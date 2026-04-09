@@ -41,6 +41,15 @@ const STRENGTH_TEXT: Record<string, string> = {
   medium_full: '#bf360c', full: '#b71c1c',
 }
 
+function priceTier(msrp: number | null): string {
+  if (!msrp) return 'Price N/A'
+  if (msrp < 5) return '$'
+  if (msrp < 10) return '$$'
+  if (msrp < 20) return '$$$'
+  if (msrp < 50) return '$$$$'
+  return '$$$$$'
+}
+
 function CigarCard({ cigar, badge }: { cigar: FeaturedCigar; badge?: string }) {
   return (
     <div style={{
@@ -67,7 +76,7 @@ function CigarCard({ cigar, badge }: { cigar: FeaturedCigar; badge?: string }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 10 }}>
         <div>
-          {cigar.msrp && <span style={{ color: '#1a0a00', fontSize: 14, fontWeight: 700 }}>${cigar.msrp.toFixed(2)}</span>}
+          <span style={{ color: '#1a0a00', fontSize: 14, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
           {cigar.avg_rating && <span style={{ color: '#c4a96a', fontSize: 12, marginLeft: 8 }}>★ {cigar.avg_rating.toFixed(1)}</span>}
           {(cigar.review_count ?? 0) > 0 && !cigar.avg_rating && (
             <span style={{ color: '#8b5e2a', fontSize: 11, display: 'block' }}>{cigar.review_count} review{cigar.review_count !== 1 ? 's' : ''}</span>
@@ -242,24 +251,22 @@ export default function Home() {
     if (selectedStrength) query = query.eq('strength', selectedStrength)
     if (selectedCountries.length === 1) query = query.eq('country_of_origin', selectedCountries[0])
     if (selectedCountries.length > 1) query = query.in('country_of_origin', selectedCountries)
- if (search.trim()) {
-  const first = search.trim().split(/\s+/)[0]
-  query = query.or(`name.ilike.%${first}%,line.ilike.%${first}%,vitola.ilike.%${first}%`)
-}
-   const { data } = await query
-   if (data) {
-  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const filtered = data.filter(c => {
-    const haystack = [c.name, c.line, c.vitola, (c.brand_accounts as any)?.name].filter(Boolean).join(' ').toLowerCase()
-    return words.every(w => haystack.includes(w))
-  })
-  setSearchResults(filtered as unknown as Cigar[])
-}
-
+    if (search.trim()) {
+      const first = search.trim().split(/\s+/)[0]
+      query = query.or(`name.ilike.%${first}%,line.ilike.%${first}%,vitola.ilike.%${first}%`)
+    }
+    const { data } = await query
+    if (data) {
+      const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const filtered = data.filter(c => {
+        const haystack = [c.name, c.line, c.vitola, (c.brand_accounts as any)?.name].filter(Boolean).join(' ').toLowerCase()
+        return words.every(w => haystack.includes(w))
+      })
+      setSearchResults(filtered as unknown as Cigar[])
+    }
     setSearchLoading(false)
   }
 
-  // Toggle a country chip — click to select, click again to deselect
   function toggleCountry(country: string) {
     setSelectedCountries(prev =>
       prev.includes(country) ? prev.filter(c => c !== country) : [...prev, country]
@@ -281,7 +288,6 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
       <Header />
 
-      {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '48px 32px', textAlign: 'center' }}>
         <h1 style={{ color: '#f5e6c8', fontSize: 34, fontWeight: 700, margin: '0 0 8px' }}>Find Your Perfect Cigar</h1>
         <p style={{ color: '#c4a96a', fontSize: 16, margin: '0 0 4px' }}>Browse, review, and discover cigars recommended by the community</p>
@@ -294,11 +300,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Filter bar */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e8ddd0', padding: '12px 32px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-
-          {/* Row 1: brand, line, strength, sandbox, clear, result count */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
             <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)}
               style={{ padding: '8px 12px', borderRadius: 6, border: selectedBrand ? '2px solid #8b5e2a' : '1px solid #d4b896', background: selectedBrand ? '#f5f0e8' : '#fff', fontSize: 14, color: selectedBrand ? '#5a3a1a' : '#888', cursor: 'pointer', minWidth: 150 }}>
@@ -355,45 +358,22 @@ export default function Home() {
             )}
           </div>
 
-          {/* Row 2: Country chips — click to select, click again to deselect, multi-select */}
           {availableCountries.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
               <span style={{ fontSize: 12, color: '#aaa', marginRight: 4, whiteSpace: 'nowrap' }}>Country:</span>
               {availableCountries.map(country => {
                 const selected = selectedCountries.includes(country)
                 return (
-                  <button
-                    key={country}
-                    onClick={() => toggleCountry(country)}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 20,
-                      border: selected ? '2px solid #1a0a00' : '1px solid #d4b896',
-                      background: selected ? '#1a0a00' : '#fff',
-                      color: selected ? '#f5e6c8' : '#5a3a1a',
-                      fontSize: 13,
-                      fontWeight: selected ? 600 : 400,
-                      cursor: 'pointer',
-                      transition: 'all 0.1s',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <button key={country} onClick={() => toggleCountry(country)} style={{ padding: '5px 12px', borderRadius: 20, border: selected ? '2px solid #1a0a00' : '1px solid #d4b896', background: selected ? '#1a0a00' : '#fff', color: selected ? '#f5e6c8' : '#5a3a1a', fontSize: 13, fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'all 0.1s', whiteSpace: 'nowrap' }}>
                     {selected && '✓ '}{country}
                   </button>
                 )
               })}
               {selectedCountries.length > 0 && (
-                <button
-                  onClick={() => setSelectedCountries([])}
-                  style={{ padding: '5px 10px', borderRadius: 20, border: 'none', background: 'none', color: '#aaa', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  clear
-                </button>
+                <button onClick={() => setSelectedCountries([])} style={{ padding: '5px 10px', borderRadius: 20, border: 'none', background: 'none', color: '#aaa', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>clear</button>
               )}
               {selectedCountries.length > 0 && (
-                <span style={{ fontSize: 12, color: '#8b5e2a', marginLeft: 4 }}>
-                  — showing {selectedCountries.length === 1 ? selectedCountries[0] : `${selectedCountries.length} countries`} only
-                </span>
+                <span style={{ fontSize: 12, color: '#8b5e2a', marginLeft: 4 }}>— showing {selectedCountries.length === 1 ? selectedCountries[0] : `${selectedCountries.length} countries`} only</span>
               )}
             </div>
           )}
@@ -401,7 +381,6 @@ export default function Home() {
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '32px 24px 48px' }}>
-
         {isSearching ? (
           <div>
             {searchLoading ? (
@@ -433,7 +412,7 @@ export default function Home() {
                       {cigar.country_of_origin && <span style={{ background: '#f0f4f8', color: '#3a5a7a', fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 500 }}>🌍 {cigar.country_of_origin}</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
-                      <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{cigar.msrp ? `$${cigar.msrp.toFixed(2)}` : 'Price N/A'}</span>
+                      <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
                       <a href={`/cigar/${cigar.id}`} style={{ color: '#c4a96a', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>View details →</a>
                     </div>
                   </div>
@@ -472,7 +451,7 @@ export default function Home() {
                       {cigar.strength && <span style={{ background: STRENGTH_BG[cigar.strength] || '#f5f5f5', color: STRENGTH_TEXT[cigar.strength] || '#555', fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 500 }}>{STRENGTH_LABELS[cigar.strength] || cigar.strength}</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
-                      <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{cigar.msrp ? `$${cigar.msrp.toFixed(2)}` : 'Price N/A'}</span>
+                      <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
                       <a href={`/cigar/${cigar.id}`} style={{ color: '#c4a96a', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>View details →</a>
                     </div>
                   </div>

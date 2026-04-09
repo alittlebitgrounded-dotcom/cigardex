@@ -10,7 +10,12 @@ type UserProfile = {
   id: string
   username: string
   role: string
-  email: string
+}
+
+type BrandAssociation = {
+  id: string
+  status: string
+  brand_accounts: { id: string; name: string; logo_url: string | null } | null
 }
 
 const INDUSTRY_ROLES = ['store', 'brand', 'reviewer']
@@ -54,18 +59,14 @@ const ROLE_CONTENT: Record<string, {
       { label: 'Verified brand badge', description: 'Shown on your brand page and all associated cigars.' },
       { label: 'Edit your brand About section', description: 'Write and update your brand\'s story directly.' },
       { label: 'Direct timeline access', description: 'Submit timeline entries that go live immediately.' },
- { label: 'Cigar Edits', description: 'Add or edit cigars manufactured by your brands.' },
-
+      { label: 'Cigar Edits', description: 'Add or edit cigars manufactured by your brands.' },
     ],
-tools: [
-  { icon: '🍂', label: 'My Brand Profile', description: 'Set your role and manage which brands you represent.', href: '/brand-rep/setup', available: true },
-  { icon: '📜', label: 'Timeline', description: 'Add history and milestones to your brand pages.', href: '/brands', available: true },
-  { icon: '🍂', label: 'Cigar Catalog', description: 'View all cigars listed under your brands.', href: '/brands', available: true },
-],
+    tools: [],
     faq: [
-      { q: 'How do I edit my brand\'s About section?', a: 'Go to your brand page and look for the edit option — it\'s available to verified brand reps.' },
-      { q: 'How do I add cigars to my catalog?', a: 'Contact us or use the suggest edit feature on any cigar page. Brand reps get priority review.' },
-      { q: 'Can I add multiple brands to my account?', a: 'Yes — contact us and we can link additional brands to your account.' },
+      { q: 'How do I edit my brand\'s About section?', a: 'Go to your brand page — you\'ll see an Edit button on the About tab when you\'re logged in as a verified rep.' },
+      { q: 'How do I add cigars to my catalog?', a: 'Click "Add Cigar" on any of your approved brand cards below.' },
+      { q: 'Can I add multiple brands to my account?', a: 'Yes — use the "Apply to represent a new brand" link below to request additional brands.' },
+      { q: 'My cigar submission went live — what happens next?', a: 'It appears immediately in the catalog. Our admin team will review it and may follow up if anything needs adjustment.' },
       { q: 'Can I change the email on my account?', a: 'Industry account emails are locked after approval. Contact us if you need to change it.' },
     ],
   },
@@ -98,16 +99,27 @@ export default function ProPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [brandAssociations, setBrandAssociations] = useState<BrandAssociation[]>([])
 
   useEffect(() => { checkAuth() }, [])
 
   async function checkAuth() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/?signin=true'); return }
-    const { data } = await supabase.from('users').select('id, username, role, email').eq('id', session.user.id).maybeSingle()
+    const { data } = await supabase.from('users').select('id, username, role').eq('id', session.user.id).maybeSingle()
     if (!data || !INDUSTRY_ROLES.includes(data.role)) { router.push('/'); return }
     setProfile(data)
+    if (data.role === 'brand') await fetchBrandAssociations(data.id)
     setLoading(false)
+  }
+
+  async function fetchBrandAssociations(userId: string) {
+    const { data } = await supabase
+      .from('brand_rep_brands')
+      .select('id, status, brand_accounts(id, name, logo_url)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+    if (data) setBrandAssociations(data as unknown as BrandAssociation[])
   }
 
   if (loading) return (
@@ -119,6 +131,9 @@ export default function ProPage() {
   if (!profile) return null
   const content = ROLE_CONTENT[profile.role]
   if (!content) return null
+
+  const approvedBrands = brandAssociations.filter(a => a.status === 'approved')
+  const pendingBrands = brandAssociations.filter(a => a.status === 'pending')
 
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
@@ -137,7 +152,7 @@ export default function ProPage() {
             </div>
           </div>
           <p style={{ color: '#8b6a4a', fontSize: 13, margin: 0 }}>
-            Logged in as <strong style={{ color: '#c4a96a' }}>{profile.username}</strong> · {profile.email}
+            Logged in as <strong style={{ color: '#c4a96a' }}>{profile.username}</strong>
           </p>
         </div>
       </div>
@@ -160,23 +175,119 @@ export default function ProPage() {
           </div>
         </div>
 
-        {/* Tools */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>Your Tools</h2>
-          <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 18px' }}>Features available to your account.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-            {content.tools.map((tool, i) => (
-              <div key={i} style={{ background: tool.available ? '#faf8f5' : '#f5f5f5', border: `1px solid ${tool.available ? '#d4b896' : '#e8e8e8'}`, borderRadius: 10, padding: '16px 18px', opacity: tool.available ? 1 : 0.6 }}>
-                <div style={{ fontSize: 22, marginBottom: 8 }}>{tool.icon}</div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a00', margin: '0 0 4px' }}>{tool.label}</p>
-                <p style={{ fontSize: 12, color: '#8b5e2a', margin: '0 0 10px', lineHeight: 1.5 }}>{tool.description}</p>
-                {tool.available
-                  ? <a href={tool.href} style={{ fontSize: 12, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>Open →</a>
-                  : <span style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Coming soon</span>}
+        {/* BRAND REP — Your Brands section */}
+        {profile.role === 'brand' && (
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>Your Brands</h2>
+              <a href="/brand-rep/setup" style={{ fontSize: 13, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>
+                + Apply to represent a new brand →
+              </a>
+            </div>
+            <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 20px' }}>
+              Manage your brands, add cigars, and update timelines.
+            </p>
+
+            {brandAssociations.length === 0 ? (
+              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: 24, textAlign: 'center' }}>
+                <p style={{ fontSize: 14, color: '#8b5e2a', margin: '0 0 12px' }}>No brands yet — request your first brand association.</p>
+                <a href="/brand-rep/setup" style={{ fontSize: 13, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>Go to My Brand Profile →</a>
               </div>
-            ))}
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Approved brands */}
+                {approvedBrands.map(a => {
+                  const brand = a.brand_accounts
+                  if (!brand) return null
+                  return (
+                    <div key={a.id} style={{ border: '1px solid #e8ddd0', borderRadius: 12, overflow: 'hidden' }}>
+                      {/* Brand header */}
+                      <div style={{ background: '#1a0a00', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 36, height: 36, background: '#fff', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {brand.logo_url
+                            ? <img src={brand.logo_url} alt={brand.name} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
+                            : <span style={{ fontSize: 18 }}>🍂</span>}
+                        </div>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: '#f5e6c8' }}>{brand.name}</span>
+                        <span style={{ fontSize: 10, background: '#c4a96a', color: '#1a0a00', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em', marginLeft: 'auto' }}>VERIFIED REP</span>
+                      </div>
+                      {/* Action grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', background: '#faf8f5' }}>
+                        {[
+                    { icon: '🍂', label: 'Profile', desc: 'View & edit brand page', href: `/brand/${brand.id}` },
+{ icon: '📜', label: 'Timeline', desc: 'Add history & milestones', href: `/brand/${brand.id}` },
+                    { icon: '➕', label: 'Add Cigar', desc: 'Add a new cigar', href: `/brand-rep/add-cigar?brand=${brand.id}` },
+                          { icon: '📋', label: 'Cigar Catalog', desc: 'View all cigars', href: `/brand/${brand.id}` },
+                        ].map((action, i) => (
+                          <a key={i} href={action.href} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            padding: '16px 8px', textDecoration: 'none',
+                            borderRight: i < 3 ? '1px solid #e8ddd0' : 'none',
+                            borderTop: '1px solid #e8ddd0',
+                            background: '#fff', transition: 'background 0.1s',
+                          }}
+                            onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = '#f5f0e8'}
+                            onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#fff'}
+                          >
+                            <span style={{ fontSize: 22, marginBottom: 6 }}>{action.icon}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1a0a00', marginBottom: 2 }}>{action.label}</span>
+                            <span style={{ fontSize: 11, color: '#8b5e2a', textAlign: 'center', lineHeight: 1.3 }}>{action.desc}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Pending brands */}
+                {pendingBrands.length > 0 && (
+                  <div style={{ border: '1px solid #ffe0b2', borderRadius: 12, overflow: 'hidden', opacity: 0.7 }}>
+                    <div style={{ background: '#fff3e0', padding: '12px 20px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#e65100', margin: '0 0 4px' }}>⏳ Pending Approval</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {pendingBrands.map(a => (
+                          <span key={a.id} style={{ fontSize: 13, color: '#5a3a1a', background: '#fff', border: '1px solid #ffe0b2', padding: '3px 10px', borderRadius: 6 }}>
+                            {a.brand_accounts?.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Grayed action grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', background: '#faf8f5' }}>
+                      {['Profile', 'Timeline', 'Add Cigar', 'Cigar Catalog'].map((label, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 8px', borderRight: i < 3 ? '1px solid #e8ddd0' : 'none', borderTop: '1px solid #e8ddd0', background: '#f5f5f5' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#bbb' }}>{label}</span>
+                          <span style={{ fontSize: 11, color: '#ccc' }}>Pending approval</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Tools — store and reviewer only */}
+        {profile.role !== 'brand' && content.tools.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>Your Tools</h2>
+            <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 18px' }}>Features available to your account.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+              {content.tools.map((tool, i) => (
+                <div key={i} style={{ background: tool.available ? '#faf8f5' : '#f5f5f5', border: `1px solid ${tool.available ? '#d4b896' : '#e8e8e8'}`, borderRadius: 10, padding: '16px 18px', opacity: tool.available ? 1 : 0.6 }}>
+                  <div style={{ fontSize: 22, marginBottom: 8 }}>{tool.icon}</div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a00', margin: '0 0 4px' }}>{tool.label}</p>
+                  <p style={{ fontSize: 12, color: '#8b5e2a', margin: '0 0 10px', lineHeight: 1.5 }}>{tool.description}</p>
+                  {tool.available
+                    ? <a href={tool.href} style={{ fontSize: 12, color: '#c4a96a', fontWeight: 600, textDecoration: 'none' }}>Open →</a>
+                    : <span style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Coming soon</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* FAQ */}
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
