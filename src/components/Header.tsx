@@ -110,7 +110,7 @@ export default function Header() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>🍂</span>
-          <a href="/" style={{ color: '#f5e6c8', fontSize: 20, fontWeight: 700, textDecoration: 'none', letterSpacing: '0.03em' }}>CigarLog</a>
+          <a href="/" style={{ color: '#f5e6c8', fontSize: 20, fontWeight: 700, textDecoration: 'none', letterSpacing: '0.03em' }}>CigarDex</a>
         </div>
         <nav style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
           <a href="/" style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>Browse</a>

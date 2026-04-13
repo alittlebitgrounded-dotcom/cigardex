@@ -16,16 +16,16 @@ export default function TermsPage() {
 
         {[
           {
-            title: 'Using CigarLog',
-            content: 'CigarLog is a cigar discovery and review platform. By creating an account you agree to use it honestly and respectfully. You must be of legal smoking age in your jurisdiction to use this service.',
+            title: 'Using CigarDex',
+            content: 'CigarDex is a cigar discovery and review platform. By creating an account you agree to use it honestly and respectfully. You must be of legal smoking age in your jurisdiction to use this service.',
           },
           {
             title: 'Your content',
-            content: 'Reviews, edits, and other content you submit belong to you. By submitting content you grant CigarLog a license to display it on the platform. We reserve the right to remove content that is false, abusive, or violates these terms.',
+            content: 'Reviews, edits, and other content you submit belong to you. By submitting content you grant CigarDex a license to display it on the platform. We reserve the right to remove content that is false, abusive, or violates these terms.',
           },
           {
             title: 'Accuracy',
-            content: 'CigarLog aims to maintain an accurate cigar database but cannot guarantee that all information is correct. Pricing, availability, and product details may change. Always verify current information with retailers and manufacturers.',
+            content: 'CigarDex aims to maintain an accurate cigar database but cannot guarantee that all information is correct. Pricing, availability, and product details may change. Always verify current information with retailers and manufacturers.',
           },
           {
             title: 'Account responsibility',
@@ -37,11 +37,11 @@ export default function TermsPage() {
           },
           {
             title: 'No warranty',
-            content: 'CigarLog is provided as-is. We make no guarantees about uptime, accuracy, or fitness for any particular purpose. We are not liable for any decisions made based on information found on this platform.',
+            content: 'CigarDex is provided as-is. We make no guarantees about uptime, accuracy, or fitness for any particular purpose. We are not liable for any decisions made based on information found on this platform.',
           },
           {
             title: 'Changes',
-            content: 'We may update these terms from time to time. Continued use of CigarLog after changes means you accept the updated terms. We will notify users of significant changes through the app.',
+            content: 'We may update these terms from time to time. Continued use of CigarDex after changes means you accept the updated terms. We will notify users of significant changes through the app.',
           },
           {
             title: 'Contact',

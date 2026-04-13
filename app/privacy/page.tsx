@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         {[
           {
             title: 'The short version',
-            content: 'We do not sell your data. We do not share your personal information with advertisers. We collect only what we need to run CigarLog, and we use it to make the app work for you.',
+            content: 'We do not sell your data. We do not share your personal information with advertisers. We collect only what we need to run CigarDex, and we use it to make the app work for you.',
           },
           {
             title: 'What we collect',
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           },
           {
             title: 'What we do not do',
-            content: 'We do not sell your personal information to anyone, ever. We do not share your email address with third parties for marketing purposes. We do not run ads. CigarLog is not and will not be an advertising platform.',
+            content: 'We do not sell your personal information to anyone, ever. We do not share your email address with third parties for marketing purposes. We do not run ads. CigarDex is not and will not be an advertising platform.',
           },
           {
             title: 'Your reviews and public activity',
@@ -41,7 +41,7 @@ export default function PrivacyPage() {
           },
           {
             title: 'Changes to this policy',
-            content: 'If we make material changes to how we handle your data, we will notify users via the app. Continued use of CigarLog after changes constitutes acceptance of the updated policy.',
+            content: 'If we make material changes to how we handle your data, we will notify users via the app. Continued use of CigarDex after changes constitutes acceptance of the updated policy.',
           },
           {
             title: 'Contact',

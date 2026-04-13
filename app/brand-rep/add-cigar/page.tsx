@@ -63,7 +63,6 @@ function AddCigarContent() {
     setUserId(session.user.id)
     setUserRole(profile.role)
 
-    // Fetch approved brands for this rep
     const { data: assocs } = await supabase
       .from('brand_rep_brands')
       .select('brand_accounts(id, name)')
@@ -149,18 +148,27 @@ function AddCigarContent() {
       <Header />
 
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '32px 32px' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{ color: '#f5e6c8', fontSize: 24, fontWeight: 700, margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>
-              Add a Cigar
-            </h1>
-            <p style={{ color: '#c4a96a', fontSize: 14, margin: 0 }}>
-              {selectedBrand ? `${selectedBrand.name} · ` : ''}Submitted cigars go live immediately.
-            </p>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <h1 style={{ color: '#f5e6c8', fontSize: 24, fontWeight: 700, margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>
+                Add a Cigar
+              </h1>
+              <p style={{ color: '#c4a96a', fontSize: 14, margin: '0 0 12px' }}>
+                {selectedBrand ? `${selectedBrand.name} · ` : ''}Submitted cigars go live immediately.
+              </p>
+              {/* Bulk insert note */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(196,169,106,0.12)', border: '1px solid rgba(196,169,106,0.3)', borderRadius: 7, padding: '8px 14px' }}>
+                <span style={{ fontSize: 16 }}>📋</span>
+                <p style={{ fontSize: 13, color: '#e8d5a3', margin: 0, lineHeight: 1.5 }}>
+                  Adding multiple cigars at once? Ask your CigarDex contact about bulk SQL inserts — it's much faster for large catalogs.
+                </p>
+              </div>
+            </div>
+            <a href="/pro" style={{ flexShrink: 0, padding: '8px 18px', borderRadius: 7, border: '1px solid rgba(196,169,106,0.4)', color: '#c4a96a', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' as const }}>
+              ← Dashboard
+            </a>
           </div>
-          <a href="/pro" style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid rgba(196,169,106,0.4)', color: '#c4a96a', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            ← Dashboard
-          </a>
         </div>
       </div>
 
@@ -222,7 +230,6 @@ function AddCigarContent() {
               </div>
             )}
 
-            {/* Brand selector — only if rep has multiple brands */}
             {allBrands.length > 1 && (
               <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 24, marginBottom: 20 }}>
                 <label style={labelStyle}>Brand *</label>
@@ -233,7 +240,6 @@ function AddCigarContent() {
               </div>
             )}
 
-            {/* Core info */}
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 20 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px', fontFamily: 'Georgia, serif' }}>Cigar Details</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -291,7 +297,6 @@ function AddCigarContent() {
               </div>
             </div>
 
-            {/* Tobacco */}
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 20 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px', fontFamily: 'Georgia, serif' }}>Tobacco</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -314,7 +319,6 @@ function AddCigarContent() {
               </div>
             </div>
 
-            {/* Description */}
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 28 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>Description</h2>
               <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 14px' }}>

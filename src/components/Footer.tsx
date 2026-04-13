@@ -21,8 +21,8 @@ export default function Footer() {
       }}>
         {/* Left — brand + copyright */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ color: '#f5e6c8', fontSize: 15, fontWeight: 700 }}>🍂 CigarLog</span>
-          <span style={{ color: '#5a3a1a', fontSize: 13 }}>© {year} CigarLog. All rights reserved.</span>
+          <span style={{ color: '#f5e6c8', fontSize: 15, fontWeight: 700 }}>🍂 CigarDex</span>
+          <span style={{ color: '#5a3a1a', fontSize: 13 }}>© {year} CigarDex. All rights reserved.</span>
         </div>
 
         {/* Right — links */}

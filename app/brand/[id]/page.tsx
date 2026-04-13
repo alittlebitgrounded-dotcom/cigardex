@@ -20,6 +20,7 @@ type Brand = {
   about_updated_at: string | null
   logo_url: string | null
   tier: string
+  is_discontinued: boolean
 }
 
 type Cigar = {
@@ -31,6 +32,7 @@ type Cigar = {
   wrapper_origin: string | null
   msrp: number | null
   status: string
+  is_discontinued: boolean
   avg_rating?: number
   review_count?: number
 }
@@ -51,13 +53,33 @@ const STRENGTH_TEXT: Record<string, string> = {
   medium_full: '#bf360c', full: '#b71c1c',
 }
 
-function CigarCard({ cigar }: { cigar: Cigar }) {
+function priceTier(msrp: number | null): string {
+  if (!msrp) return 'Price N/A'
+  if (msrp < 5) return '$'
+  if (msrp < 10) return '$$'
+  if (msrp < 20) return '$$$'
+  if (msrp < 50) return '$$$$'
+  return '$$$$$'
+}
+
+function isCigarDiscontinued(cigar: Cigar, brandIsDisc: boolean, discLineKeys: Set<string>, brandId: string): boolean {
+  if (brandIsDisc) return true
+  if (cigar.is_discontinued) return true
+  if (cigar.line && discLineKeys.has(`${brandId}::${cigar.line}`)) return true
+  return false
+}
+
+function CigarCard({ cigar, brandIsDisc, discLineKeys, brandId }: {
+  cigar: Cigar; brandIsDisc: boolean; discLineKeys: Set<string>; brandId: string
+}) {
+  const disc = isCigarDiscontinued(cigar, brandIsDisc, discLineKeys, brandId)
   return (
     <div
-      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, transform 0.15s' }}
+      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, transform 0.15s', opacity: disc ? 0.85 : 1 }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
     >
+      {disc && <div style={{ marginBottom: 8 }}><span style={{ background: '#F7C1C1', color: '#791F1F', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 3 }}>Discontinued</span></div>}
       <h3 style={{ color: '#1a0a00', fontSize: 16, fontWeight: 700, margin: '0 0 4px', lineHeight: 1.3 }}>{cigar.name}</h3>
       {cigar.line && !cigar.name.toLowerCase().includes(cigar.line.toLowerCase()) && (
         <p style={{ color: '#8b5e2a', fontSize: 13, margin: '0 0 10px' }}>{cigar.line}</p>
@@ -69,7 +91,7 @@ function CigarCard({ cigar }: { cigar: Cigar }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{cigar.msrp ? `$${cigar.msrp.toFixed(2)}` : 'Price N/A'}</span>
+          <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
           {cigar.avg_rating && <span style={{ color: '#c4a96a', fontSize: 13 }}>★ {cigar.avg_rating.toFixed(1)}</span>}
           {(cigar.review_count ?? 0) > 0 && !cigar.avg_rating && <span style={{ color: '#8b5e2a', fontSize: 12 }}>{cigar.review_count} review{cigar.review_count !== 1 ? 's' : ''}</span>}
         </div>
@@ -79,9 +101,10 @@ function CigarCard({ cigar }: { cigar: Cigar }) {
   )
 }
 
-function ScrollRow({ title, cigars, onShuffle, shuffling }: {
+function ScrollRow({ title, cigars, onShuffle, shuffling, brandIsDisc, discLineKeys, brandId }: {
   title: string; cigars: Cigar[]
   onShuffle?: () => void; shuffling?: boolean
+  brandIsDisc: boolean; discLineKeys: Set<string>; brandId: string
 }) {
   if (cigars.length === 0) return null
   return (
@@ -98,7 +121,7 @@ function ScrollRow({ title, cigars, onShuffle, shuffling }: {
       <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'thin' as const }}>
         {cigars.map(c => (
           <div key={c.id} style={{ width: 260, flexShrink: 0 }}>
-            <CigarCard cigar={c} />
+            <CigarCard cigar={c} brandIsDisc={brandIsDisc} discLineKeys={discLineKeys} brandId={brandId} />
           </div>
         ))}
       </div>
@@ -119,6 +142,7 @@ export default function BrandPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const [isApprovedRep, setIsApprovedRep] = useState(false)
   const [showReportError, setShowReportError] = useState(false)
+  const [discLineKeys, setDiscLineKeys] = useState<Set<string>>(new Set())
 
   const [newestCigars, setNewestCigars] = useState<Cigar[]>([])
   const [highestRated, setHighestRated] = useState<Cigar[]>([])
@@ -130,7 +154,6 @@ export default function BrandPage() {
   const [browseStrength, setBrowseStrength] = useState('')
   const [showStrengthDropdown, setShowStrengthDropdown] = useState(false)
 
-  // About editing
   const [editingAbout, setEditingAbout] = useState(false)
   const [aboutDraft, setAboutDraft] = useState('')
   const [savingAbout, setSavingAbout] = useState(false)
@@ -158,12 +181,8 @@ export default function BrandPage() {
 
   async function checkRepStatus(userId: string) {
     const { data } = await supabase
-      .from('brand_rep_brands')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('brand_account_id', brandId)
-      .eq('status', 'approved')
-      .maybeSingle()
+      .from('brand_rep_brands').select('id')
+      .eq('user_id', userId).eq('brand_account_id', brandId).eq('status', 'approved').maybeSingle()
     setIsApprovedRep(!!data)
   }
 
@@ -171,13 +190,17 @@ export default function BrandPage() {
 
   async function fetchAll() {
     setLoading(true)
-    const [brandRes, cigarsRes] = await Promise.all([
-      supabase.from('brand_accounts').select('id, name, country_of_origin, founded_year, description, about, about_updated_by, about_updated_at, logo_url, tier').eq('id', brandId).single(),
-      supabase.from('cigars').select('id, name, line, vitola, strength, wrapper_origin, msrp, status').eq('brand_account_id', brandId).eq('status', 'live').order('name'),
+    const [brandRes, cigarsRes, discLinesRes] = await Promise.all([
+      supabase.from('brand_accounts').select('id, name, country_of_origin, founded_year, description, about, about_updated_by, about_updated_at, logo_url, tier, is_discontinued').eq('id', brandId).single(),
+      supabase.from('cigars').select('id, name, line, vitola, strength, wrapper_origin, msrp, status, is_discontinued').eq('brand_account_id', brandId).eq('status', 'live').order('name'),
+      supabase.from('discontinued_lines').select('line_name').eq('brand_account_id', brandId),
     ])
     if (brandRes.data) {
       setBrand(brandRes.data as unknown as Brand)
       setAboutDraft(brandRes.data.about || brandRes.data.description || '')
+    }
+    if (discLinesRes.data) {
+      setDiscLineKeys(new Set(discLinesRes.data.map((l: any) => `${brandId}::${l.line_name}`)))
     }
     if (cigarsRes.data) {
       setAllCigars(cigarsRes.data)
@@ -195,7 +218,7 @@ export default function BrandPage() {
 
   async function buildFeaturedSections(cigars: Cigar[]) {
     const { data: newest } = await supabase
-      .from('cigars').select('id, name, line, vitola, strength, wrapper_origin, msrp, status')
+      .from('cigars').select('id, name, line, vitola, strength, wrapper_origin, msrp, status, is_discontinued')
       .eq('brand_account_id', brandId).eq('status', 'live')
       .order('created_at', { ascending: false }).limit(3)
     if (newest) setNewestCigars(newest)
@@ -222,8 +245,7 @@ export default function BrandPage() {
 
   async function saveAbout() {
     if (!brand || !currentUser) return
-    setSavingAbout(true)
-    setAboutMsg('')
+    setSavingAbout(true); setAboutMsg('')
     const { error } = await supabase.from('brand_accounts').update({
       about: aboutDraft.trim() || null,
       about_updated_by: currentUser.id,
@@ -232,8 +254,7 @@ export default function BrandPage() {
     setSavingAbout(false)
     if (error) { setAboutMsg(`Error: ${error.message}`); return }
     setBrand(prev => prev ? { ...prev, about: aboutDraft.trim() || null, about_updated_by: currentUser.id } : prev)
-    setEditingAbout(false)
-    setAboutMsg('About section updated.')
+    setEditingAbout(false); setAboutMsg('About section updated.')
   }
 
   function shuffleDiscover() {
@@ -262,6 +283,7 @@ export default function BrandPage() {
 
   const aboutText = brand.about || brand.description
   const aboutIsFromBrand = !!brand.about_updated_by
+  const brandIsDisc = brand.is_discontinued
 
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
@@ -284,10 +306,14 @@ export default function BrandPage() {
                 : <span style={{ fontSize: 32 }}>🍂</span>}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                 <h1 style={{ color: '#f5e6c8', fontSize: 28, fontWeight: 700, margin: 0 }}>{brand.name}</h1>
                 {isApprovedRep && (
                   <span style={{ fontSize: 11, background: '#c4a96a', color: '#1a0a00', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.05em' }}>VERIFIED</span>
+                )}
+                {/* ✅ Discontinued badge on brand header */}
+                {brandIsDisc && (
+                  <span style={{ fontSize: 11, background: '#F7C1C1', color: '#791F1F', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>Discontinued</span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -351,9 +377,9 @@ export default function BrandPage() {
                 Browse All →
               </button>
             </div>
-            <ScrollRow title="🆕 Newest Additions" cigars={newestCigars} />
-            {highestRated.length > 0 && <ScrollRow title="⭐ Highest Rated" cigars={highestRated} />}
-            <ScrollRow title="🎲 Surprise Me" cigars={discoverCigars} onShuffle={shuffleDiscover} shuffling={discoverLoading} />
+            <ScrollRow title="🆕 Newest Additions" cigars={newestCigars} brandIsDisc={brandIsDisc} discLineKeys={discLineKeys} brandId={brandId} />
+            {highestRated.length > 0 && <ScrollRow title="⭐ Highest Rated" cigars={highestRated} brandIsDisc={brandIsDisc} discLineKeys={discLineKeys} brandId={brandId} />}
+            <ScrollRow title="🎲 Surprise Me" cigars={discoverCigars} onShuffle={shuffleDiscover} shuffling={discoverLoading} brandIsDisc={brandIsDisc} discLineKeys={discLineKeys} brandId={brandId} />
           </div>
         )}
 
@@ -393,7 +419,7 @@ export default function BrandPage() {
               <p style={{ color: '#aaa', textAlign: 'center', padding: '40px 0' }}>No cigars match your filters</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 20 }}>
-                {filteredBrowse.map(c => <CigarCard key={c.id} cigar={c} />)}
+                {filteredBrowse.map(c => <CigarCard key={c.id} cigar={c} brandIsDisc={brandIsDisc} discLineKeys={discLineKeys} brandId={brandId} />)}
               </div>
             )}
           </div>
@@ -406,17 +432,21 @@ export default function BrandPage() {
               <p style={{ color: '#aaa' }}>No lines recorded yet.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-                {lines.map(line => (
-                  <div key={line.name}
-                    style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', transition: 'box-shadow 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'}
-                    onClick={() => { setBrowseSearch(line.name); setActiveSection('cigars'); setShowBrowseAll(true) }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px' }}>{line.name}</h3>
-                    <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 10px' }}>{line.count} vitola{line.count !== 1 ? 's' : ''}</p>
-                    <span style={{ fontSize: 12, color: '#c4a96a', fontWeight: 500 }}>Browse line →</span>
-                  </div>
-                ))}
+                {lines.map(line => {
+                  const lineIsDisc = discLineKeys.has(`${brandId}::${line.name}`)
+                  return (
+                    <div key={line.name}
+                      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', transition: 'box-shadow 0.15s', opacity: (brandIsDisc || lineIsDisc) ? 0.85 : 1 }}
+                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'}
+                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'}
+                      onClick={() => { setBrowseSearch(line.name); setActiveSection('cigars'); setShowBrowseAll(true) }}>
+                      {(brandIsDisc || lineIsDisc) && <div style={{ marginBottom: 6 }}><span style={{ background: '#F7C1C1', color: '#791F1F', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 3 }}>Discontinued</span></div>}
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px' }}>{line.name}</h3>
+                      <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 10px' }}>{line.count} vitola{line.count !== 1 ? 's' : ''}</p>
+                      <span style={{ fontSize: 12, color: '#c4a96a', fontWeight: 500 }}>Browse line →</span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -447,13 +477,9 @@ export default function BrandPage() {
                     <span style={{ fontSize: 11, fontWeight: 700, background: '#c4a96a', color: '#1a0a00', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.05em' }}>EDITING AS BRAND REP</span>
                     <span style={{ fontSize: 12, color: '#aaa' }}>This will be marked "From the Brand" once saved</span>
                   </div>
-                  <textarea
-                    value={aboutDraft}
-                    onChange={e => setAboutDraft(e.target.value)}
-                    rows={10}
-                    placeholder="Tell the CigarDex community about your brand — your story, your philosophy, what makes your cigars unique..."
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif', lineHeight: 1.7, marginBottom: 14 }}
-                  />
+                  <textarea value={aboutDraft} onChange={e => setAboutDraft(e.target.value)} rows={10}
+                    placeholder="Tell the CigarDex community about your brand..."
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif', lineHeight: 1.7, marginBottom: 14 }} />
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button onClick={saveAbout} disabled={savingAbout}
                       style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#1a0a00', color: '#f5e6c8', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: savingAbout ? 0.7 : 1 }}>

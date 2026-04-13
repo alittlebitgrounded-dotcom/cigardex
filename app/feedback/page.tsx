@@ -9,7 +9,7 @@ const FEEDBACK_TYPES = [
   { value: 'bug', label: '🐛 Bug report', description: 'Something is broken or not working right' },
   { value: 'suggestion', label: '💡 Feature suggestion', description: 'Something you\'d like to see added' },
   { value: 'data', label: '📊 Data quality', description: 'Missing cigars, wrong info, bad imports' },
-  { value: 'compliment', label: '🍂 Compliment', description: 'Something you love about CigarLog' },
+  { value: 'compliment', label: '🍂 Compliment', description: 'Something you love about CigarDex' },
   { value: 'other', label: '💬 Other', description: 'Anything else on your mind' },
 ]
 
@@ -47,8 +47,8 @@ export default function FeedbackPage() {
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 48, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🙏</div>
             <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 10px' }}>Thank you!</h2>
-            <p style={{ color: '#8b5e2a', fontSize: 15, margin: '0 0 24px' }}>Your feedback helps make CigarLog better for everyone.</p>
-            <a href="/" style={{ background: '#1a0a00', color: '#f5e6c8', padding: '12px 28px', borderRadius: 8, textDecoration: 'none', fontSize: 15, fontWeight: 600 }}>Back to CigarLog</a>
+            <p style={{ color: '#8b5e2a', fontSize: 15, margin: '0 0 24px' }}>Your feedback helps make CigarDex better for everyone.</p>
+            <a href="/" style={{ background: '#1a0a00', color: '#f5e6c8', padding: '12px 28px', borderRadius: 8, textDecoration: 'none', fontSize: 15, fontWeight: 600 }}>Back to CigarDex</a>
           </div>
         ) : (
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28 }}>

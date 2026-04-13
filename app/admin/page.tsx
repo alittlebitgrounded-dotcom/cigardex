@@ -36,13 +36,19 @@ type BrandMergePair = {
 type Cigar = {
   id: string; name: string; line: string | null; vitola: string | null
   strength: string | null; msrp: number | null; status: string
-  is_limited: boolean; created_at: string; country_of_origin: string | null
+  is_limited: boolean; is_discontinued: boolean; created_at: string
+  country_of_origin: string | null; submitted_by_role: string | null
   brand_accounts: { name: string } | null
 }
 
 type Brand = {
   id: string; name: string; country_of_origin: string | null
-  suspended: boolean; tier: string; created_at: string
+  suspended: boolean; is_discontinued: boolean; tier: string; created_at: string
+}
+
+type DiscontinuedLine = {
+  id: string; brand_account_id: string; line_name: string; created_at: string
+  brand_accounts: { name: string } | null
 }
 
 type UserRow = {
@@ -87,6 +93,13 @@ export default function AdminPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [edits, setEdits] = useState<CigarEdit[]>([])
 
+  // ✅ Discontinued lines state
+  const [discontinuedLines, setDiscontinuedLines] = useState<DiscontinuedLine[]>([])
+  const [newLineBrandId, setNewLineBrandId] = useState('')
+  const [newLineName, setNewLineName] = useState('')
+  const [discLineMsg, setDiscLineMsg] = useState('')
+  const [discLineSearch, setDiscLineSearch] = useState('')
+
   const [cigarSearch, setCigarSearch] = useState('')
   const [cigarStatusFilter, setCigarStatusFilter] = useState('all')
   const [cigarIncompleteFilter, setCigarIncompleteFilter] = useState<string[]>([])
@@ -107,6 +120,9 @@ export default function AdminPage() {
   const [showNewCigar, setShowNewCigar] = useState(false)
   const [newCigar, setNewCigar] = useState({ name: '', line: '', vitola: '', strength: '', wrapper_origin: '', binder_origin: '', filler_origins: '', msrp: '', upc: '', brand_id: '' })
   const [newCigarMsg, setNewCigarMsg] = useState('')
+
+  const [cigarDesignations, setCigarDesignations] = useState<{ id: string; name: string }[]>([])
+  const [newCigarDesignationIds, setNewCigarDesignationIds] = useState<string[]>([])
 
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
@@ -159,10 +175,11 @@ export default function AdminPage() {
   const [awardMsg, setAwardMsg] = useState('')
 
   const [brandRepAssociations, setBrandRepAssociations] = useState<any[]>([])
-const [brandRepMsg, setBrandRepMsg] = useState('')
+  const [brandRepMsg, setBrandRepMsg] = useState('')
+
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
 
   useEffect(() => { checkAuth() }, [])
-  useEffect(() => { if (isAdmin) fetchSection(section) }, [section, isAdmin])
 
   async function checkAuth() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -171,20 +188,61 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
     if (!data || !['super_admin', 'moderator'].includes(data.role)) { router.push('/'); return }
     setIsAdmin(true)
     setAuthChecked(true)
+    fetchPendingCounts()
+    fetchSection('cigars')
   }
 
-  async function fetchSection(s: Section) {
-    setLoading(true)
-    if (s === 'cigars') {
-      const { data } = await supabase.from('cigars')
-        .select('id, name, line, vitola, strength, msrp, status, is_limited, created_at, country_of_origin, brand_accounts(name)')
-        .order('created_at', { ascending: false }).limit(200)
-      if (data) setCigars(data as unknown as Cigar[])
+ async function fetchPendingCounts() {
+  const [moderation, brand_reps, applications, awards] = await Promise.all([
+    supabase.from('cigar_edits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('brand_rep_brands').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('industry_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('store_designations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+  ])
+  setPendingCounts({
+    moderation: moderation.count || 0,
+    brand_reps: brand_reps.count || 0,
+    applications: applications.count || 0,
+    awards: awards.count || 0,
+  })
+}
+
+async function fetchSection(s: Section) {
+  setLoading(true)
+
+  if (s === 'cigars') {
+    if (brands.length === 0) {
+      const { data: brandData } = await supabase
+        .from('brand_accounts')
+        .select('id, name')
+        .order('name')
+
+      if (brandData) setBrands(brandData as unknown as Brand[])
     }
-  
+if (cigarDesignations.length === 0) {
+      const { data: desigData } = await supabase
+        .from('retailer_designations')
+        .select('id, name')
+        .eq('is_exclusivity_designation', true)
+        .order('name')
+      if (desigData) setCigarDesignations(desigData)
+    }
+    const { data } = await supabase
+      .from('cigars')
+      .select('id, name, line, vitola, strength, msrp, status, is_limited, is_discontinued, created_at, country_of_origin, submitted_by_role, brand_accounts(name)')
+      .order('created_at', { ascending: false })
+      .limit(200)
+
+    if (data) setCigars(data as unknown as Cigar[])
+  }
+
+
     if (s === 'brands') {
-      const { data } = await supabase.from('brand_accounts').select('id, name, country_of_origin, suspended, tier, created_at').order('name')
-      if (data) setBrands(data)
+      const { data } = await supabase.from('brand_accounts')
+        .select('id, name, country_of_origin, suspended, is_discontinued, tier, created_at')
+        .order('name')
+      if (data) setBrands(data as unknown as Brand[])
+      await fetchDiscontinuedLines()
     }
     if (s === 'users') {
       const { data } = await supabase.from('users').select('id, username, email, role, tier, suspended, created_at').order('created_at', { ascending: false })
@@ -213,9 +271,57 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
     if (s === 'applications') await fetchApplications()
     if (s === 'feedback') await fetchFeedback()
     if (s === 'timeline') await fetchTimeline()
-   if (s === 'brand_reps') await fetchBrandReps()
-     if (s === 'awards') await fetchAwards()
+    if (s === 'brand_reps') await fetchBrandReps()
+    if (s === 'awards') await fetchAwards()
     setLoading(false)
+  }
+
+  // ✅ Discontinued lines CRUD
+  async function fetchDiscontinuedLines() {
+    const { data } = await supabase
+      .from('discontinued_lines')
+      .select('id, brand_account_id, line_name, created_at, brand_accounts(name)')
+      .order('created_at', { ascending: false })
+    if (data) setDiscontinuedLines(data as unknown as DiscontinuedLine[])
+  }
+
+  async function addDiscontinuedLine() {
+    setDiscLineMsg('')
+    if (!newLineBrandId) { setDiscLineMsg('Select a brand'); return }
+    if (!newLineName.trim()) { setDiscLineMsg('Enter a line name'); return }
+    const { error } = await supabase.from('discontinued_lines').insert({
+      brand_account_id: newLineBrandId,
+      line_name: newLineName.trim(),
+    })
+    if (error) {
+      if (error.code === '23505') setDiscLineMsg('That line is already marked discontinued for this brand.')
+      else setDiscLineMsg(`Error: ${error.message}`)
+      return
+    }
+    setNewLineName('')
+    setDiscLineMsg('Line marked as discontinued.')
+    await logAction('add_discontinued_line', 'discontinued_lines', newLineBrandId, `Line: "${newLineName.trim()}"`)
+    fetchDiscontinuedLines()
+  }
+
+  async function removeDiscontinuedLine(id: string, brandId: string, lineName: string) {
+    await supabase.from('discontinued_lines').delete().eq('id', id)
+    setDiscontinuedLines(prev => prev.filter(l => l.id !== id))
+    await logAction('remove_discontinued_line', 'discontinued_lines', brandId, `Line: "${lineName}"`)
+  }
+
+  // ✅ Toggle brand discontinued
+  async function toggleBrandDiscontinued(id: string, current: boolean) {
+    await supabase.from('brand_accounts').update({ is_discontinued: !current }).eq('id', id)
+    setBrands(prev => prev.map(b => b.id === id ? { ...b, is_discontinued: !current } : b))
+    await logAction(!current ? 'mark_brand_discontinued' : 'unmark_brand_discontinued', 'brand_account', id, '')
+  }
+
+  // ✅ Toggle cigar discontinued
+  async function toggleCigarDiscontinued(id: string, current: boolean) {
+    await supabase.from('cigars').update({ is_discontinued: !current }).eq('id', id)
+    setCigars(prev => prev.map(c => c.id === id ? { ...c, is_discontinued: !current } : c))
+    await logAction(!current ? 'mark_cigar_discontinued' : 'unmark_cigar_discontinued', 'cigar', id, '')
   }
 
   async function updateCigarStatus(id: string, status: string) {
@@ -268,10 +374,12 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
     await supabase.from('cigars').update(edit.changes).eq('id', (edit as unknown as { cigar_id: string }).cigar_id)
     await supabase.from('cigar_edits').update({ status: 'approved' }).eq('id', edit.id)
     setEdits(prev => prev.filter(e => e.id !== edit.id))
+    fetchPendingCounts()
   }
   async function rejectEdit(id: string) {
     await supabase.from('cigar_edits').update({ status: 'rejected' }).eq('id', id)
     setEdits(prev => prev.filter(e => e.id !== id))
+    fetchPendingCounts()
   }
   async function approveField(edit: CigarEdit, fieldKey: string) {
     const fieldUpdate = { [fieldKey]: edit.changes[fieldKey] }
@@ -310,31 +418,64 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
       setApplications(data.map((a: any) => ({ ...a, _matched: matchedEmails.has(a.email) })))
     }
   }
+  async function geocodeStoreAddress(address: string | null, city: string | null, state: string | null): Promise<{ lat: number; lng: number } | null> {
+    try {
+      if (address && city && state) {
+        const params = new URLSearchParams({ street: address, city, state, benchmark: 'Public_AR_Current', format: 'json' })
+        const res = await fetch(`https://geocoding.geo.census.gov/geocoder/locations/address?${params}`)
+        if (res.ok) {
+          const data = await res.json()
+          const match = data?.result?.addressMatches?.[0]
+          if (match) return { lat: match.coordinates.y, lng: match.coordinates.x }
+        }
+      }
+      if (city && state) {
+        const query = encodeURIComponent(`${city}, ${state}, USA`)
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=us`, { headers: { 'User-Agent': 'CigarDex/1.0' } })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
+        }
+      }
+      return null
+    } catch { return null }
+  }
   async function approveApplication(app: IndustryApplication) {
     const note = appNotes[app.id] || ''
     setAppActioning(app.id)
     try {
       const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
       if (userRow) {
-   const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : app.role_type === 'reviewer' ? 'reviewer' : 'premium'
+        const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : app.role_type === 'reviewer' ? 'reviewer' : 'premium'
         await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
-   // Populate publication/social fields from application
-      const socialUrls: Record<string, string> = {}
-      if (app.instagram) socialUrls.instagram = app.instagram
-      if (app.youtube) socialUrls.youtube = app.youtube
-      if (app.podcast) socialUrls.podcast = app.podcast
-      await supabase.from('users').update({
-        publication_name: app.company || null,
-        publication_url: app.website || null,
-        social_urls: Object.keys(socialUrls).length > 0 ? socialUrls : null,
-      }).eq('id', userRow.id)
+        const socialUrls: Record<string, string> = {}
+        if (app.instagram) socialUrls.instagram = app.instagram
+        if (app.youtube) socialUrls.youtube = app.youtube
+        if (app.podcast) socialUrls.podcast = app.podcast
+        await supabase.from('users').update({
+          publication_name: app.company || null,
+          publication_url: app.website || null,
+          social_urls: Object.keys(socialUrls).length > 0 ? socialUrls : null,
+        }).eq('id', userRow.id)
+        if (app.role_type === 'brand' && app.designations && app.designations.length > 0) {
+          for (const brandName of app.designations) {
+            const { data: brandMatch } = await supabase.from('brand_accounts').select('id').ilike('name', brandName).maybeSingle()
+            if (brandMatch) {
+              await supabase.from('brand_rep_brands').upsert(
+                { user_id: userRow.id, brand_account_id: brandMatch.id, status: 'approved' },
+                { onConflict: 'user_id,brand_account_id' }
+              )
+            }
+          }
+        }
         if (app.role_type === 'retailer') {
           const { data: existingAccount } = await supabase.from('store_accounts').select('id').eq('user_id', userRow.id).maybeSingle()
           let storeId: string | null = null
           if (!existingAccount) {
             const { data: newAccount } = await supabase.from('store_accounts').insert({ user_id: userRow.id, company_name: app.company, suspended: false, tier: 'free' }).select('id').single()
             if (newAccount) {
-              const { data: newStore } = await supabase.from('stores').insert({ store_account_id: newAccount.id, name: app.company, type: 'brick_and_mortar', active: true }).select('id').single()
+              const coords = await geocodeStoreAddress(null, app.company, null)
+              const { data: newStore } = await supabase.from('stores').insert({ store_account_id: newAccount.id, name: app.company, type: 'brick_and_mortar', active: true, latitude: coords?.lat ?? null, longitude: coords?.lng ?? null }).select('id').single()
               if (newStore) storeId = newStore.id
             }
           } else {
@@ -351,9 +492,8 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
       }
       await supabase.from('industry_applications').update({ status: 'approved', admin_note: note || null }).eq('id', app.id)
       setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved', admin_note: note || null } : a))
-    } finally {
-      setAppActioning(null)
-    }
+      fetchPendingCounts()
+    } finally { setAppActioning(null) }
   }
   async function rejectApplication(id: string) {
     const note = appNotes[id] || ''
@@ -361,6 +501,7 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
     await supabase.from('industry_applications').update({ status: 'rejected', admin_note: note || null }).eq('id', id)
     setApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'rejected', admin_note: note || null } : a))
     setAppActioning(null)
+    fetchPendingCounts()
   }
   async function fetchFeedback() {
     const { data } = await supabase.from('feedback').select('*').order('created_at', { ascending: false })
@@ -657,8 +798,20 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
     if (!session) return
     const { error } = await supabase.from('cigars').insert({ name: newCigar.name, line: newCigar.line || null, vitola: newCigar.vitola || null, strength: newCigar.strength || null, wrapper_origin: newCigar.wrapper_origin || null, binder_origin: newCigar.binder_origin || null, filler_origins: newCigar.filler_origins || null, msrp: newCigar.msrp ? parseFloat(newCigar.msrp) : null, upc: newCigar.upc || null, brand_account_id: newCigar.brand_id, submitted_by: session.user.id, status: 'live' })
     if (error) { setNewCigarMsg(error.message); return }
+    // Insert cigar_designations rows if any selected
+    if (newCigarDesignationIds.length > 0) {
+      const { data: newCigarRow } = await supabase
+        .from('cigars').select('id').eq('name', newCigar.name)
+        .eq('brand_account_id', newCigar.brand_id).order('created_at', { ascending: false }).limit(1).single()
+      if (newCigarRow) {
+        await supabase.from('cigar_designations').insert(
+          newCigarDesignationIds.map(did => ({ cigar_id: newCigarRow.id, designation_id: did }))
+        )
+      }
+    }
     setNewCigarMsg(`Cigar "${newCigar.name}" created!`)
     setNewCigar({ name: '', line: '', vitola: '', strength: '', wrapper_origin: '', binder_origin: '', filler_origins: '', msrp: '', upc: '', brand_id: '' })
+    setNewCigarDesignationIds([])
     setShowNewCigar(false); fetchSection('cigars')
   }
   async function fetchAwards() {
@@ -689,29 +842,30 @@ const [brandRepMsg, setBrandRepMsg] = useState('')
     await supabase.from('store_designations').update({ verified: true, status: 'approved' }).eq('id', id)
     setPendingAwards(prev => prev.filter(a => a.id !== id))
     setAwardMsg('Approved.')
+    fetchPendingCounts()
   }
   async function rejectPendingAward(id: string) {
     await supabase.from('store_designations').delete().eq('id', id)
     setPendingAwards(prev => prev.filter(a => a.id !== id))
     setAwardMsg('Rejected.')
+    fetchPendingCounts()
   }
-async function fetchBrandReps() {
-  const { data } = await supabase
-    .from('brand_rep_brands')
-    .select('id, status, created_at, user_id, brand_account_id, users(username, email), brand_accounts(name)')
-    .order('created_at', { ascending: true })
-  if (data) setBrandRepAssociations(data)
-}
-async function approveBrandRep(id: string) {
-  await supabase.from('brand_rep_brands').update({ status: 'approved' }).eq('id', id)
-  setBrandRepAssociations(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' } : a))
-  setBrandRepMsg('Approved.')
-}
-async function rejectBrandRep(id: string) {
-  await supabase.from('brand_rep_brands').delete().eq('id', id)
-  setBrandRepAssociations(prev => prev.filter(a => a.id !== id))
-  setBrandRepMsg('Rejected.')
-}
+  async function fetchBrandReps() {
+    const { data } = await supabase.from('brand_rep_brands').select('id, status, created_at, user_id, brand_account_id, users(username, email), brand_accounts(name)').order('created_at', { ascending: true })
+    if (data) setBrandRepAssociations(data)
+  }
+  async function approveBrandRep(id: string) {
+    await supabase.from('brand_rep_brands').update({ status: 'approved' }).eq('id', id)
+    setBrandRepAssociations(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' } : a))
+    setBrandRepMsg('Approved.')
+    fetchPendingCounts()
+  }
+  async function rejectBrandRep(id: string) {
+    setBrandRepAssociations(prev => prev.filter(a => a.id !== id))
+    const { error } = await supabase.from('brand_rep_brands').delete().eq('id', id)
+    if (error) { fetchBrandReps(); setBrandRepMsg('Delete failed — please try again.') }
+    else { setBrandRepMsg('Rejected.'); fetchPendingCounts() }
+  }
 
   if (!authChecked) return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
@@ -724,13 +878,20 @@ async function rejectBrandRep(id: string) {
   const btnDanger = { padding: '6px 14px', background: '#fbe9e7', color: '#b71c1c', border: '1px solid #f5c6c6', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }
   const btnSuccess = { padding: '6px 14px', background: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }
   const btnWarning = { padding: '6px 14px', background: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }
+  // ✅ Discontinued button style — red pill, toggleable
+  const btnDiscontinued = (active: boolean) => ({
+    padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    background: active ? '#F7C1C1' : '#f5f5f5',
+    color: active ? '#791F1F' : '#aaa',
+    border: active ? '1px solid #f09090' : '1px solid #ddd',
+  })
 
   const sectionNav = [
     { key: 'cigars', label: '🍂 Cigars' }, { key: 'brands', label: '🏭 Brands' },
     { key: 'users', label: '👤 Users' }, { key: 'moderation', label: '📋 Moderation' },
     { key: 'characteristics', label: '🏷 Characteristics' }, { key: 'stores', label: '🏪 Stores' },
     { key: 'awards', label: '🏅 Awards' }, { key: 'reviews', label: '📝 Reviews' },
-   { key: 'brand_reps', label: '🍂 Brand Reps' },
+    { key: 'brand_reps', label: '🍂 Brand Reps' },
     { key: 'applications', label: '🏭 Applications' }, { key: 'feedback', label: '💬 Feedback' },
     { key: 'timeline', label: '📜 Timeline' },
   ] as const
@@ -751,12 +912,17 @@ async function rejectBrandRep(id: string) {
   const filteredUsers = users.filter(u => !userSearch || u.username?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()))
   const filteredChars = characteristics.filter(c => charStatusFilter === 'all' || c.status === charStatusFilter)
   const filteredBrands = brands.filter(b => !brandSearch || b.name.toLowerCase().includes(brandSearch.toLowerCase()))
+  const filteredDiscLines = discontinuedLines.filter(l =>
+    !discLineSearch ||
+    l.line_name.toLowerCase().includes(discLineSearch.toLowerCase()) ||
+    (l.brand_accounts as any)?.name?.toLowerCase().includes(discLineSearch.toLowerCase())
+  )
 
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
       <header style={{ background: '#1a0a00', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64, position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <a href="/" style={{ color: '#f5e6c8', fontSize: 20, fontWeight: 700, textDecoration: 'none' }}>🍂 CigarLog</a>
+          <a href="/" style={{ color: '#f5e6c8', fontSize: 20, fontWeight: 700, textDecoration: 'none' }}>🍂 CigarDex</a>
           <span style={{ color: '#c4a96a', fontSize: 13, background: '#2c1206', padding: '3px 10px', borderRadius: 4, fontWeight: 600 }}>ADMIN</span>
         </div>
         <a href="/" style={{ color: '#c4a96a', fontSize: 14, textDecoration: 'none' }}>← Back to site</a>
@@ -765,9 +931,17 @@ async function rejectBrandRep(id: string) {
       <div style={{ display: 'flex', maxWidth: 1400, margin: '0 auto', padding: 24, gap: 24 }}>
         <aside style={{ width: 200, flexShrink: 0 }}>
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', overflow: 'hidden', position: 'sticky', top: 88 }}>
-            {sectionNav.map(({ key, label }) => (
-              <button key={key} onClick={() => setSection(key)} style={{ width: '100%', padding: '12px 16px', textAlign: 'left', background: section === key ? '#f5f0e8' : 'none', border: 'none', borderLeft: section === key ? '3px solid #1a0a00' : '3px solid transparent', fontSize: 14, fontWeight: section === key ? 600 : 400, color: section === key ? '#1a0a00' : '#5a3a1a', cursor: 'pointer' }}>{label}</button>
-            ))}
+            {sectionNav.map(({ key, label }) => {
+              const count = pendingCounts[key] || 0
+              return (
+                <button key={key} onClick={() => { setSection(key); fetchSection(key) }} style={{ width: '100%', padding: '12px 16px', textAlign: 'left', background: section === key ? '#f5f0e8' : 'none', border: 'none', borderLeft: section === key ? '3px solid #1a0a00' : '3px solid transparent', fontSize: 14, fontWeight: section === key ? 600 : 400, color: section === key ? '#1a0a00' : '#5a3a1a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{label}</span>
+                  {count > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, background: '#b71c1c', color: '#fff', borderRadius: 10, padding: '1px 7px', minWidth: 18, textAlign: 'center', lineHeight: '16px' }}>{count}</span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </aside>
 
@@ -805,6 +979,22 @@ async function rejectBrandRep(id: string) {
                       </select>
                     </div>
                   </div>
+                 {cigarDesignations.length > 0 && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>Exclusivity Designations <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span></label>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {cigarDesignations.map(d => {
+                          const checked = newCigarDesignationIds.includes(d.id)
+                          return (
+                            <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, border: checked ? '1px solid #c4a96a' : '1px solid #d4b896', background: checked ? '#fdf6e3' : '#faf8f5', cursor: 'pointer', fontSize: 13, color: '#1a0a00' }}>
+                              <input type="checkbox" checked={checked} onChange={e => setNewCigarDesignationIds(prev => e.target.checked ? [...prev, d.id] : prev.filter(x => x !== d.id))} style={{ cursor: 'pointer' }} />
+                              {d.name}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                   {newCigarMsg && <p style={{ color: newCigarMsg.includes('created') ? '#2e7d32' : '#b71c1c', fontSize: 13, marginTop: 12 }}>{newCigarMsg}</p>}
                   <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                     <button onClick={createCigar} style={btnPrimary}>Create Cigar</button>
@@ -863,6 +1053,8 @@ async function rejectBrandRep(id: string) {
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 500, color: '#1a0a00' }}>
                           <a href={`/cigar/${c.id}`} style={{ color: '#1a0a00', textDecoration: 'none' }}>{c.name}</a>
                           {c.is_limited && <span style={{ marginLeft: 6, fontSize: 10, background: '#fff3e0', color: '#e65100', padding: '1px 6px', borderRadius: 3 }}>LIMITED</span>}
+                          {c.submitted_by_role === 'brand' && <span style={{ marginLeft: 6, fontSize: 10, background: '#e3f2fd', color: '#1565c0', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>BRAND REP</span>}
+                          {c.is_discontinued && <span style={{ marginLeft: 6, fontSize: 10, background: '#F7C1C1', color: '#791F1F', padding: '1px 6px', borderRadius: 3, fontWeight: 600 }}>DISCONTINUED</span>}
                           {!c.country_of_origin && <span style={{ marginLeft: 6, fontSize: 10, background: '#fbe9e7', color: '#b71c1c', padding: '1px 6px', borderRadius: 3 }}>no country</span>}
                         </td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: c.vitola ? '#5a3a1a' : '#e0a0a0' }}>{c.vitola || '—'}</td>
@@ -873,7 +1065,13 @@ async function rejectBrandRep(id: string) {
                           </select>
                         </td>
                         <td style={{ padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            {/* ✅ Discontinued toggle */}
+                            <button onClick={() => toggleCigarDiscontinued(c.id, c.is_discontinued)}
+                              style={btnDiscontinued(c.is_discontinued)}
+                              title={c.is_discontinued ? 'Mark as active' : 'Mark as discontinued'}>
+                              {c.is_discontinued ? 'Discontinued' : 'Disc.?'}
+                            </button>
                             <a href={`/cigar/${c.id}`} style={{ color: '#c4a96a', fontSize: 12, textDecoration: 'none', fontWeight: 500 }}>View →</a>
                             <a href={`/admin/cigar/${c.id}`} style={{ color: '#8b5e2a', fontSize: 12, textDecoration: 'none', fontWeight: 500, background: '#f5f0e8', border: '1px solid #d4b896', borderRadius: 5, padding: '3px 10px' }}>Edit</a>
                           </div>
@@ -892,6 +1090,59 @@ async function rejectBrandRep(id: string) {
           {section === 'brands' && (
             <div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Brand Management</h1>
+
+              {/* ✅ Discontinued Lines panel */}
+              <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 2px' }}>🚫 Discontinued Lines</h3>
+                    <p style={{ fontSize: 12, color: '#8b5e2a', margin: 0 }}>Mark specific cigar lines as discontinued — applies to all cigars in that line</p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Brand *</label>
+                    <select value={newLineBrandId} onChange={e => setNewLineBrandId(e.target.value)} style={inputStyle}>
+                      <option value="">Select brand...</option>
+                      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 2, minWidth: 180 }}>
+                    <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Line Name *</label>
+                    <input value={newLineName} onChange={e => setNewLineName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addDiscontinuedLine()}
+                      placeholder="e.g. Anejo, Liga Privada No. 9" style={inputStyle} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button onClick={addDiscontinuedLine} style={btnPrimary}>Mark Discontinued</button>
+                  </div>
+                </div>
+                {discLineMsg && (
+                  <p style={{ fontSize: 13, color: discLineMsg.includes('Error') ? '#b71c1c' : '#2e7d32', margin: '0 0 12px' }}>{discLineMsg}</p>
+                )}
+                {discontinuedLines.length > 0 && (
+                  <>
+                    <input placeholder="Search discontinued lines..." value={discLineSearch} onChange={e => setDiscLineSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 280, marginBottom: 10 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+                      {filteredDiscLines.map(l => (
+                        <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#faf8f5', borderRadius: 6, padding: '8px 12px', border: '1px solid #e8ddd0' }}>
+                          <div>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1a0a00' }}>{l.line_name}</span>
+                            <span style={{ fontSize: 12, color: '#8b5e2a', marginLeft: 10 }}>{(l.brand_accounts as any)?.name}</span>
+                          </div>
+                          <button onClick={() => removeDiscontinuedLine(l.id, l.brand_account_id, l.line_name)}
+                            style={{ ...btnDanger, padding: '3px 10px', fontSize: 11 }}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 12, color: '#aaa', margin: '8px 0 0' }}>{filteredDiscLines.length} discontinued line{filteredDiscLines.length !== 1 ? 's' : ''}</p>
+                  </>
+                )}
+                {discontinuedLines.length === 0 && (
+                  <p style={{ fontSize: 13, color: '#aaa', margin: 0 }}>No discontinued lines yet.</p>
+                )}
+              </div>
+
               <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 14px' }}>Add New Brand</h3>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -909,6 +1160,7 @@ async function rejectBrandRep(id: string) {
                 </div>
                 {newBrandMsg && <p style={{ color: newBrandMsg.includes('created') ? '#2e7d32' : '#b71c1c', fontSize: 13, marginTop: 10 }}>{newBrandMsg}</p>}
               </div>
+
               <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div>
@@ -947,6 +1199,7 @@ async function rejectBrandRep(id: string) {
                   })}
                 </div>
               </div>
+
               <input placeholder="Search brands..." value={brandSearch} onChange={e => setBrandSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 280, marginBottom: 16 }} />
               <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -961,7 +1214,10 @@ async function rejectBrandRep(id: string) {
                     {filteredBrands.map((b, i) => (
                       <tr key={b.id} style={{ borderBottom: '1px solid #f0e8dc', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
                         <td style={{ padding: '10px 14px' }}>
-                          <input defaultValue={b.name} onBlur={e => updateBrandName(b.id, e.target.value)} style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', border: 'none', borderBottom: '1px dashed #d4b896', background: 'transparent', outline: 'none', width: '100%', padding: '2px 4px' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input defaultValue={b.name} onBlur={e => updateBrandName(b.id, e.target.value)} style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', border: 'none', borderBottom: '1px dashed #d4b896', background: 'transparent', outline: 'none', width: '100%', padding: '2px 4px' }} />
+                            {b.is_discontinued && <span style={{ fontSize: 10, background: '#F7C1C1', color: '#791F1F', padding: '1px 6px', borderRadius: 3, fontWeight: 600, whiteSpace: 'nowrap' as const }}>Discontinued</span>}
+                          </div>
                         </td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{b.country_of_origin || '—'}</td>
                         <td style={{ padding: '10px 14px' }}>
@@ -973,7 +1229,15 @@ async function rejectBrandRep(id: string) {
                           <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: b.suspended ? '#fbe9e7' : '#e8f5e9', color: b.suspended ? '#b71c1c' : '#2e7d32', fontWeight: 600 }}>{b.suspended ? 'Suspended' : 'Active'}</span>
                         </td>
                         <td style={{ padding: '10px 14px' }}>
-                          <button onClick={() => toggleBrandSuspended(b.id, b.suspended)} style={b.suspended ? btnSuccess : btnDanger}>{b.suspended ? 'Reinstate' : 'Suspend'}</button>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {/* ✅ Discontinued toggle for brands */}
+                            <button onClick={() => toggleBrandDiscontinued(b.id, b.is_discontinued)}
+                              style={btnDiscontinued(b.is_discontinued)}
+                              title={b.is_discontinued ? 'Mark brand as active' : 'Mark brand as discontinued'}>
+                              {b.is_discontinued ? 'Discontinued' : 'Disc.?'}
+                            </button>
+                            <button onClick={() => toggleBrandSuspended(b.id, b.suspended)} style={b.suspended ? btnSuccess : btnDanger}>{b.suspended ? 'Reinstate' : 'Suspend'}</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1172,15 +1436,12 @@ async function rejectBrandRep(id: string) {
           {section === 'awards' && (
             <div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Awards & Designations</h1>
-
               {awardMsg && (
                 <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>✓ {awardMsg}</span>
                   <button onClick={() => setAwardMsg('')} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: 16 }}>×</button>
                 </div>
               )}
-
-              {/* Pending requests */}
               {pendingAwards.length > 0 && (
                 <div style={{ background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: 12, padding: 20, marginBottom: 24 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e65100', margin: '0 0 14px' }}>⏳ Pending Requests ({pendingAwards.length})</h3>
@@ -1203,8 +1464,6 @@ async function rejectBrandRep(id: string) {
                   </div>
                 </div>
               )}
-
-              {/* Add new */}
               <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 20, marginBottom: 24 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a0a00', margin: '0 0 14px' }}>Add to Global List</h3>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -1221,8 +1480,6 @@ async function rejectBrandRep(id: string) {
                   </div>
                 </div>
               </div>
-
-              {/* Global list */}
               <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
@@ -1728,67 +1985,68 @@ async function rejectBrandRep(id: string) {
               )}
             </div>
           )}
-{section === 'brand_reps' && (
-  <div>
-    <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Brand Representatives</h1>
-    {brandRepMsg && (
-      <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>✓ {brandRepMsg}</span>
-        <button onClick={() => setBrandRepMsg('')} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: 16 }}>×</button>
-      </div>
-    )}
-    {/* Pending */}
-    {brandRepAssociations.filter(a => a.status === 'pending').length > 0 && (
-      <div style={{ background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e65100', margin: '0 0 14px' }}>⏳ Pending ({brandRepAssociations.filter(a => a.status === 'pending').length})</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {brandRepAssociations.filter(a => a.status === 'pending').map((a: any) => (
-            <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '12px 16px', border: '1px solid #ffe0b2' }}>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', margin: '0 0 2px' }}>{(a.users as any)?.username} → {(a.brand_accounts as any)?.name}</p>
-                <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{(a.users as any)?.email} · {new Date(a.created_at).toLocaleDateString()}</p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => approveBrandRep(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
-                <button onClick={() => rejectBrandRep(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fbe9e7', color: '#b71c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Reject</button>
+
+          {/* ===== BRAND REPS ===== */}
+          {section === 'brand_reps' && (
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Brand Representatives</h1>
+              {brandRepMsg && (
+                <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>✓ {brandRepMsg}</span>
+                  <button onClick={() => setBrandRepMsg('')} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: 16 }}>×</button>
+                </div>
+              )}
+              {brandRepAssociations.filter(a => a.status === 'pending').length > 0 && (
+                <div style={{ background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e65100', margin: '0 0 14px' }}>⏳ Pending ({brandRepAssociations.filter(a => a.status === 'pending').length})</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {brandRepAssociations.filter(a => a.status === 'pending').map((a: any) => (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '12px 16px', border: '1px solid #ffe0b2' }}>
+                        <div>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: '#1a0a00', margin: '0 0 2px' }}>{(a.users as any)?.username} → {(a.brand_accounts as any)?.name}</p>
+                          <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>{(a.users as any)?.email} · {new Date(a.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => approveBrandRep(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
+                          <button onClick={() => rejectBrandRep(a.id)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fbe9e7', color: '#b71c1c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Reject</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f5f0e8', borderBottom: '1px solid #e8ddd0' }}>
+                      {['Rep', 'Email', 'Brand', 'Status', 'Actions'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#5a3a1a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brandRepAssociations.filter(a => a.status === 'approved').map((a: any, i: number) => (
+                      <tr key={a.id} style={{ borderBottom: '1px solid #f0e8dc', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+                        <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: '#1a0a00' }}>{(a.users as any)?.username}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{(a.users as any)?.email}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{(a.brand_accounts as any)?.name}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: '#e8f5e9', color: '#2e7d32', fontWeight: 600 }}>Approved</span>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <button onClick={() => rejectBrandRep(a.id)} style={btnDanger}>Revoke</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {brandRepAssociations.filter(a => a.status === 'approved').length === 0 && (
+                      <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#aaa' }}>No approved brand reps yet</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-    )}
-    {/* Approved list */}
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#f5f0e8', borderBottom: '1px solid #e8ddd0' }}>
-            {['Rep', 'Email', 'Brand', 'Status', 'Actions'].map(h => (
-              <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#5a3a1a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {brandRepAssociations.filter(a => a.status === 'approved').map((a: any, i: number) => (
-            <tr key={a.id} style={{ borderBottom: '1px solid #f0e8dc', background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
-              <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: '#1a0a00' }}>{(a.users as any)?.username}</td>
-              <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{(a.users as any)?.email}</td>
-              <td style={{ padding: '10px 14px', fontSize: 13, color: '#5a3a1a' }}>{(a.brand_accounts as any)?.name}</td>
-              <td style={{ padding: '10px 14px' }}>
-                <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, background: '#e8f5e9', color: '#2e7d32', fontWeight: 600 }}>Approved</span>
-              </td>
-              <td style={{ padding: '10px 14px' }}>
-                <button onClick={() => rejectBrandRep(a.id)} style={btnDanger}>Revoke</button>
-              </td>
-            </tr>
-          ))}
-          {brandRepAssociations.filter(a => a.status === 'approved').length === 0 && (
-            <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#aaa' }}>No approved brand reps yet</td></tr>
           )}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)}
+
           {msg && <p style={{ marginTop: 16, color: '#2e7d32', fontSize: 13 }}>{msg}</p>}
         </main>
       </div>

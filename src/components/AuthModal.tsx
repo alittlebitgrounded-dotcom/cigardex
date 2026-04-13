@@ -129,7 +129,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <span style={{ fontSize: 32 }}>🍂</span>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '8px 0 4px' }}>CigarLog</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '8px 0 4px' }}>CigarDex</h2>
           <p style={{ color: '#8b5e2a', fontSize: 14, margin: 0 }}>
             {mode === 'signin' && 'Welcome back'}
             {mode === 'signup' && 'Create your account'}
