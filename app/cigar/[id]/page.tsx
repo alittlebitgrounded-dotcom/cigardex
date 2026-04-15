@@ -197,7 +197,6 @@ async function geocodeZip(zip: string): Promise<{ lat: number; lng: number } | n
   return null
 }
 
-// ✅ Sort reviews: press (reviewer role) first, then most helpful, then newest
 function sortReviews(reviews: Review[]): Review[] {
   return [...reviews].sort((a, b) => {
     const aIsPress = a.users?.role === 'reviewer' ? 1 : 0
@@ -223,6 +222,7 @@ export default function CigarDetailPage() {
   const [characteristics, setCharacteristics] = useState<Characteristic[]>([])
   const [storeBrands, setStoreBrands] = useState<StoreBrand[]>([])
   const [cigarDesignations, setCigarDesignations] = useState<CigarDesignation[]>([])
+  const [allNearbyStores, setAllNearbyStores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mainTab, setMainTab] = useState<MainTab>('overview')
   const [contentTab, setContentTab] = useState<ContentTab>('reviews')
@@ -234,14 +234,14 @@ export default function CigarDetailPage() {
   const [isInHumidor, setIsInHumidor] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [reviewPage, setReviewPage] = useState(1)
- const [votingId, setVotingId] = useState<string | null>(null)
+  const [votingId, setVotingId] = useState<string | null>(null)
   const [discLineKeys, setDiscLineKeys] = useState<Set<string>>(new Set())
-
   const [locationState, setLocationState] = useState<LocationState>({ status: 'idle' })
   const [zipInput, setZipInput] = useState('')
   const [zipError, setZipError] = useState('')
   const [zipLoading, setZipLoading] = useState(false)
   const [radiusFilter, setRadiusFilter] = useState<RadiusOption>(50)
+  const [tier3ShowAll, setTier3ShowAll] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -307,8 +307,7 @@ export default function CigarDetailPage() {
   async function fetchAll() {
     setLoading(true)
     const [cigarRes, historyRes, reviewRes, inventoryRes, charRes, designationRes] = await Promise.all([
-supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, description, logo_url, is_discontinued)').eq('id', id).single(),
-
+      supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, description, logo_url, is_discontinued)').eq('id', id).single(),
       supabase.from('cigar_history').select('id, event_type, description, event_date').eq('cigar_id', id).eq('status', 'approved').order('event_date', { ascending: false }),
       supabase.from('reviews').select('id, user_id, cigar_id, rating, notes, draw_score, burn_score, construction_score, value_score, strength_impression, body, finish, occasion, where_smoked, smoke_duration_minutes, revision_notes, smoked_at, created_at, updated_at, source_url').eq('cigar_id', id).order('created_at', { ascending: false }),
       supabase.from('inventory').select('id, in_stock, price, url, stores(id, name, type, city, state, address, phone, website_url, latitude, longitude, store_designations(retailer_designations(name, description)))').eq('cigar_id', id),
@@ -332,8 +331,12 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
       if (discLinesRes.data) {
         setDiscLineKeys(new Set(discLinesRes.data.map((l: any) => `${cigarRes.data!.brand_accounts!.id}::${l.line_name}`)))
       }
+      const { data: allStoresData } = await supabase
+        .from('stores')
+        .select('id, name, type, city, state, address, phone, website_url, latitude, longitude, active, store_designations(retailer_designations(name, description))')
+        .eq('active', true)
+      if (allStoresData) setAllNearbyStores(allStoresData)
     }
-
 
     if (reviewRes.data) {
       const rawReviews = reviewRes.data as unknown as Review[]
@@ -393,7 +396,6 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
         _pairing: pairingMap[r.id] || null,
       }))
 
-      // ✅ Apply sort: press → most helpful → newest
       setReviews(sortReviews(assembled))
     }
 
@@ -537,7 +539,6 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
   const pagedReviews = reviews.slice((reviewPage - 1) * REVIEWS_PER_PAGE, reviewPage * REVIEWS_PER_PAGE)
   const showSummary = reviews.length >= 10
 
-  // ✅ Detect if current page has both press and community reviews for divider
   const pressReviewsOnPage = pagedReviews.filter(r => r.users?.role === 'reviewer')
   const communityReviewsOnPage = pagedReviews.filter(r => r.users?.role !== 'reviewer')
   const showDivider = pressReviewsOnPage.length > 0 && communityReviewsOnPage.length > 0
@@ -619,7 +620,42 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
   const hasAnyListings = inventoryWithDistance.length > 0 || brandStoresWithDistance.length > 0
   const hasAnyNearby = nearbyInventory.length > 0 || nearbyBrandStores.length > 0
 
-  // ✅ Helper to render a single review card (used in both press and community sections)
+  const tier1and2StoreIds = new Set([
+    ...inventoryWithDistance.map(inv => inv.stores?.id),
+    ...brandStoresWithDistance.map(sb => sb.stores?.id),
+  ].filter(Boolean))
+
+  const tier3Stores = allNearbyStores
+    .filter(s => !tier1and2StoreIds.has(s.id))
+    .filter(s => {
+      if (storeFilter === 'all') return true
+      if (storeFilter === 'brick') return s.type === 'brick_and_mortar' || s.type === 'both'
+      if (storeFilter === 'online') return s.type === 'online' || s.type === 'both'
+      return true
+    })
+    .map(s => {
+      let distance: number | null = null
+      if (userLat !== null && userLng !== null && s.latitude && s.longitude) {
+        distance = distanceMiles(userLat, userLng, s.latitude, s.longitude)
+      }
+      return { ...s, _distance: distance }
+    })
+    .filter(s => !hasLocation || (s._distance !== null && s._distance <= radiusFilter))
+    .sort((a, b) => {
+      if (cigarIsDesignationGated) {
+        const aDesigNames = new Set((a.store_designations || []).map((sd: any) => sd.retailer_designations?.name).filter(Boolean))
+        const bDesigNames = new Set((b.store_designations || []).map((sd: any) => sd.retailer_designations?.name).filter(Boolean))
+        const aMeets = requiredDesignationNames.every(name => aDesigNames.has(name))
+        const bMeets = requiredDesignationNames.every(name => bDesigNames.has(name))
+        if (aMeets !== bMeets) return aMeets ? -1 : 1
+      }
+      // Stores with coordinates sort before stores without
+      if (a._distance !== null && b._distance !== null) return a._distance - b._distance
+      if (a._distance !== null) return -1
+      if (b._distance !== null) return 1
+      return 0
+    })
+
   function ReviewCard({ r, isFirst }: { r: Review; isFirst: boolean }) {
     return (
       <div style={{ borderBottom: '1px solid #f0e8dc', paddingBottom: 24 }}>
@@ -733,7 +769,7 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                         : <span style={{ fontSize: 40 }}>🍂</span>}
                     </div>
                     <div style={{ flex: 1 }}>
-                     {(cigar.is_discontinued ||
+                      {(cigar.is_discontinued ||
                         (cigar.brand_accounts as any)?.is_discontinued ||
                         (cigar.brand_accounts?.id && cigar.line && discLineKeys.has(`${cigar.brand_accounts.id}::${cigar.line}`))
                       ) && (
@@ -742,7 +778,6 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                       {cigar.is_limited && (
                         <span style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.05em', marginBottom: 10, display: 'inline-block' }}>LIMITED / DISCONTINUED</span>
                       )}
-
                       {cigarDesignations.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                           {cigarDesignations.map(d => (
@@ -883,7 +918,6 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                             </div>
                           )}
 
-                          {/* ✅ Press section header — only shown when press reviews are on this page */}
                           {pressReviewsOnPage.length > 0 && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                               <span style={{ fontSize: 11, fontWeight: 700, background: '#1a0a00', color: '#c4a96a', padding: '3px 10px', borderRadius: 4, letterSpacing: '0.05em' }}>PRESS</span>
@@ -896,7 +930,6 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                               const isFirstCommunity = showDivider && r.users?.role !== 'reviewer' && pagedReviews[i - 1]?.users?.role === 'reviewer'
                               return (
                                 <div key={r.id}>
-                                  {/* ✅ Divider between press and community sections */}
                                   {isFirstCommunity && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, marginTop: 4 }}>
                                       <div style={{ flex: 1, height: 1, background: '#e8ddd0' }} />
@@ -1019,7 +1052,8 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                           </div>
                         )}
 
-                        {!hasAnyListings && (
+                        {/* ===== TIER 1: Exact inventory ===== */}
+                        {!hasAnyListings && tier3Stores.length === 0 && (
                           <div style={{ textAlign: 'center', padding: '40px 0', color: '#aaa' }}>
                             <p style={{ fontSize: 16, marginBottom: 8 }}>No store listings yet</p>
                             <p style={{ fontSize: 13 }}>We don't have any retailer data for this cigar yet.</p>
@@ -1077,6 +1111,7 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                           </div>
                         )}
 
+                        {/* ===== TIER 2: Brand stores ===== */}
                         {nearbyBrandStores.length > 0 && (
                           <div style={{ marginBottom: 16 }}>
                             {nearbyInventory.length === 0 && (
@@ -1134,6 +1169,93 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                           </div>
                         )}
 
+                        {/* ===== TIER 3: All other nearby stores ===== */}
+                        {tier3Stores.length > 0 && (
+                          <div style={{ marginBottom: 16 }}>
+                            <p style={{ fontSize: 12, color: '#8b5e2a', fontWeight: 600, margin: '0 0 10px', background: '#f5f0e8', padding: '8px 12px', borderRadius: 6, border: '1px solid #e8ddd0' }}>
+                              🏪 Other tobacconists in your area — call ahead to check availability
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+  
+{(tier3ShowAll ? tier3Stores : tier3Stores.slice(0, 10)).map(s => {
+  const storeDesigs =
+    (s.store_designations || [])
+      .map((sd: any) => sd.retailer_designations?.name)
+      .filter(Boolean)
+      .slice(0, 3)
+
+  return (
+    <div key={s.id} style={{ padding: '14px 16px', background: '#faf8f5', borderRadius: 8, border: '1px solid #e8ddd0', opacity: 0.8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 16 }}>{storeIcon(s.type || '')}</span>
+            <span style={{ fontWeight: 600, color: '#1a0a00', fontSize: 15 }}>{s.name}</span>
+            <span style={{ fontSize: 11, color: '#8b5e2a', background: '#f0e8dc', padding: '2px 8px', borderRadius: 4 }}>
+              {storeTypeLabel(s.type || '')}
+            </span>
+            {s._distance !== null && (
+              <span style={{ fontSize: 11, color: '#c4a96a', fontWeight: 600, background: '#faf8f0', border: '1px solid #e8d8b0', padding: '2px 8px', borderRadius: 4 }}>
+                📍 {formatDistance(s._distance)}
+              </span>
+            )}
+          </div>
+
+          {(s.city || s.state) && (
+            <p style={{ fontSize: 12, color: '#8b5e2a', margin: '0 0 4px', paddingLeft: 24 }}>
+              {[s.address, s.city, s.state].filter(Boolean).join(', ')}
+            </p>
+          )}
+
+          {s.phone && (
+            <p style={{ fontSize: 12, color: '#8b5e2a', margin: '0 0 4px', paddingLeft: 24 }}>
+              <a href={`tel:${s.phone}`} style={{ color: '#8b5e2a', textDecoration: 'none' }}>{s.phone}</a>
+            </p>
+          )}
+
+          {storeDesigs.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingLeft: 24 }}>
+              {storeDesigs.map((d: string, i: number) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#1a0a00',
+                    background: '#c4a96a',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                  }}
+                >
+                  ★ {d}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ flexShrink: 0 }}>
+          {s.website_url && (
+            <a href={s.website_url} target="_blank" rel="noopener noreferrer" style={{ color: '#8b5e2a', fontSize: 12 }}>
+              Website →
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+})}
+
+                            </div>
+                            {tier3Stores.length > 10 && (
+                              <button onClick={() => setTier3ShowAll(prev => !prev)}
+                                style={{ marginTop: 10, width: '100%', padding: '8px 0', borderRadius: 6, border: '1px solid #d4b896', background: '#f5f0e8', color: '#5a3a1a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                {tier3ShowAll ? 'Show fewer' : `Show ${tier3Stores.length - 10} more nearby stores`}
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         {hasLocation && !hasAnyNearby && (farInventory.length > 0 || farBrandStores.length > 0) && (
                           <div style={{ background: '#f5f0e8', border: '1px solid #e8ddd0', borderRadius: 8, padding: '16px 20px', marginBottom: 20, textAlign: 'center' }}>
                             <p style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 6px' }}>No listings within {radiusFilter === 9999 ? 'your area' : `${radiusFilter} miles`}</p>
@@ -1188,7 +1310,7 @@ supabase.from('cigars').select('*, brand_accounts(id, name, country_of_origin, d
                           </div>
                         )}
 
-                        {hasAnyListings && (
+                        {(hasAnyListings || tier3Stores.length > 0) && (
                           <p style={{ fontSize: 11, color: '#bbb', margin: '20px 0 0', lineHeight: 1.5 }}>
                             Store information is self-reported by retailers and may not reflect current inventory. Stock status and pricing may have changed. CigarDex is not responsible for inaccurate listings.
                           </p>

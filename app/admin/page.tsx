@@ -38,7 +38,9 @@ type Cigar = {
   strength: string | null; msrp: number | null; status: string
   is_limited: boolean; is_discontinued: boolean; created_at: string
   country_of_origin: string | null; submitted_by_role: string | null
+  description: string | null
   brand_accounts: { name: string } | null
+  users: { username: string } | null
 }
 
 type Brand = {
@@ -87,13 +89,17 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
 
   const [cigars, setCigars] = useState<Cigar[]>([])
+  const [pendingCigars, setPendingCigars] = useState<Cigar[]>([])
+  const [pendingCigarActioning, setPendingCigarActioning] = useState<string | null>(null)
+  const [pendingCigarMsg, setPendingCigarMsg] = useState('')
+  const [showPendingCigars, setShowPendingCigars] = useState(true)
+
   const [brands, setBrands] = useState<Brand[]>([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [characteristics, setCharacteristics] = useState<Characteristic[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [edits, setEdits] = useState<CigarEdit[]>([])
 
-  // ✅ Discontinued lines state
   const [discontinuedLines, setDiscontinuedLines] = useState<DiscontinuedLine[]>([])
   const [newLineBrandId, setNewLineBrandId] = useState('')
   const [newLineName, setNewLineName] = useState('')
@@ -192,55 +198,79 @@ export default function AdminPage() {
     fetchSection('cigars')
   }
 
- async function fetchPendingCounts() {
-  const [moderation, brand_reps, applications, awards] = await Promise.all([
-    supabase.from('cigar_edits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('brand_rep_brands').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('industry_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('store_designations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-  ])
-  setPendingCounts({
-    moderation: moderation.count || 0,
-    brand_reps: brand_reps.count || 0,
-    applications: applications.count || 0,
-    awards: awards.count || 0,
-  })
-}
-
-async function fetchSection(s: Section) {
-  setLoading(true)
-
-  if (s === 'cigars') {
-    if (brands.length === 0) {
-      const { data: brandData } = await supabase
-        .from('brand_accounts')
-        .select('id, name')
-        .order('name')
-
-      if (brandData) setBrands(brandData as unknown as Brand[])
-    }
-if (cigarDesignations.length === 0) {
-      const { data: desigData } = await supabase
-        .from('retailer_designations')
-        .select('id, name')
-        .eq('is_exclusivity_designation', true)
-        .order('name')
-      if (desigData) setCigarDesignations(desigData)
-    }
-    const { data } = await supabase
-      .from('cigars')
-      .select('id, name, line, vitola, strength, msrp, status, is_limited, is_discontinued, created_at, country_of_origin, submitted_by_role, brand_accounts(name)')
-      .order('created_at', { ascending: false })
-      .limit(200)
-
-    if (data) setCigars(data as unknown as Cigar[])
+  async function fetchPendingCounts() {
+    const [moderation, brand_reps, applications, awards, pending_cigars] = await Promise.all([
+      supabase.from('cigar_edits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('brand_rep_brands').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('industry_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('store_designations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('cigars').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    ])
+    setPendingCounts({
+      moderation: moderation.count || 0,
+      brand_reps: brand_reps.count || 0,
+      applications: applications.count || 0,
+      awards: awards.count || 0,
+      cigars: pending_cigars.count || 0,
+    })
   }
 
+  async function fetchPendingCigars() {
+    const { data } = await supabase
+      .from('cigars')
+      .select('id, name, line, vitola, strength, msrp, status, is_limited, is_discontinued, created_at, country_of_origin, submitted_by_role, description, brand_accounts(name), users:submitted_by(username)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+    if (data) setPendingCigars(data as unknown as Cigar[])
+  }
+
+  async function approvePendingCigar(id: string, brandAccountId: string | null) {
+    setPendingCigarActioning(id)
+    setPendingCigarMsg('')
+    const { error } = await supabase.from('cigars').update({ status: 'live' }).eq('id', id)
+    if (error) { setPendingCigarMsg(`Error: ${error.message}`); setPendingCigarActioning(null); return }
+    await logAction('approve_pending_cigar', 'cigar', id, 'Approved user-submitted cigar')
+    setPendingCigars(prev => prev.filter(c => c.id !== id))
+    fetchPendingCounts()
+    setPendingCigarMsg('Cigar approved and is now live.')
+    setPendingCigarActioning(null)
+  }
+
+  async function rejectPendingCigar(id: string) {
+    setPendingCigarActioning(id)
+    setPendingCigarMsg('')
+    const { error } = await supabase.from('cigars').update({ status: 'rejected' }).eq('id', id)
+    if (error) { setPendingCigarMsg(`Error: ${error.message}`); setPendingCigarActioning(null); return }
+    await logAction('reject_pending_cigar', 'cigar', id, 'Rejected user-submitted cigar')
+    setPendingCigars(prev => prev.filter(c => c.id !== id))
+    fetchPendingCounts()
+    setPendingCigarMsg('Cigar rejected.')
+    setPendingCigarActioning(null)
+  }
+
+  async function fetchSection(s: Section) {
+    setLoading(true)
+
+    if (s === 'cigars') {
+      if (brands.length === 0) {
+        const { data: brandData } = await supabase.from('brand_accounts').select('id, name').order('name')
+        if (brandData) setBrands(brandData as unknown as Brand[])
+      }
+      if (cigarDesignations.length === 0) {
+        const { data: desigData } = await supabase.from('retailer_designations').select('id, name').eq('is_exclusivity_designation', true).order('name')
+        if (desigData) setCigarDesignations(desigData)
+      }
+      const { data } = await supabase
+        .from('cigars')
+        .select('id, name, line, vitola, strength, msrp, status, is_limited, is_discontinued, created_at, country_of_origin, submitted_by_role, description, brand_accounts(name), users:submitted_by(username)')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (data) setCigars(data as unknown as Cigar[])
+      await fetchPendingCigars()
+    }
 
     if (s === 'brands') {
-      const { data } = await supabase.from('brand_accounts')
-        .select('id, name, country_of_origin, suspended, is_discontinued, tier, created_at')
-        .order('name')
+      const { data } = await supabase.from('brand_accounts').select('id, name, country_of_origin, suspended, is_discontinued, tier, created_at').order('name')
       if (data) setBrands(data as unknown as Brand[])
       await fetchDiscontinuedLines()
     }
@@ -276,12 +306,8 @@ if (cigarDesignations.length === 0) {
     setLoading(false)
   }
 
-  // ✅ Discontinued lines CRUD
   async function fetchDiscontinuedLines() {
-    const { data } = await supabase
-      .from('discontinued_lines')
-      .select('id, brand_account_id, line_name, created_at, brand_accounts(name)')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('discontinued_lines').select('id, brand_account_id, line_name, created_at, brand_accounts(name)').order('created_at', { ascending: false })
     if (data) setDiscontinuedLines(data as unknown as DiscontinuedLine[])
   }
 
@@ -289,10 +315,7 @@ if (cigarDesignations.length === 0) {
     setDiscLineMsg('')
     if (!newLineBrandId) { setDiscLineMsg('Select a brand'); return }
     if (!newLineName.trim()) { setDiscLineMsg('Enter a line name'); return }
-    const { error } = await supabase.from('discontinued_lines').insert({
-      brand_account_id: newLineBrandId,
-      line_name: newLineName.trim(),
-    })
+    const { error } = await supabase.from('discontinued_lines').insert({ brand_account_id: newLineBrandId, line_name: newLineName.trim() })
     if (error) {
       if (error.code === '23505') setDiscLineMsg('That line is already marked discontinued for this brand.')
       else setDiscLineMsg(`Error: ${error.message}`)
@@ -310,14 +333,12 @@ if (cigarDesignations.length === 0) {
     await logAction('remove_discontinued_line', 'discontinued_lines', brandId, `Line: "${lineName}"`)
   }
 
-  // ✅ Toggle brand discontinued
   async function toggleBrandDiscontinued(id: string, current: boolean) {
     await supabase.from('brand_accounts').update({ is_discontinued: !current }).eq('id', id)
     setBrands(prev => prev.map(b => b.id === id ? { ...b, is_discontinued: !current } : b))
     await logAction(!current ? 'mark_brand_discontinued' : 'unmark_brand_discontinued', 'brand_account', id, '')
   }
 
-  // ✅ Toggle cigar discontinued
   async function toggleCigarDiscontinued(id: string, current: boolean) {
     await supabase.from('cigars').update({ is_discontinued: !current }).eq('id', id)
     setCigars(prev => prev.map(c => c.id === id ? { ...c, is_discontinued: !current } : c))
@@ -798,15 +819,10 @@ if (cigarDesignations.length === 0) {
     if (!session) return
     const { error } = await supabase.from('cigars').insert({ name: newCigar.name, line: newCigar.line || null, vitola: newCigar.vitola || null, strength: newCigar.strength || null, wrapper_origin: newCigar.wrapper_origin || null, binder_origin: newCigar.binder_origin || null, filler_origins: newCigar.filler_origins || null, msrp: newCigar.msrp ? parseFloat(newCigar.msrp) : null, upc: newCigar.upc || null, brand_account_id: newCigar.brand_id, submitted_by: session.user.id, status: 'live' })
     if (error) { setNewCigarMsg(error.message); return }
-    // Insert cigar_designations rows if any selected
     if (newCigarDesignationIds.length > 0) {
-      const { data: newCigarRow } = await supabase
-        .from('cigars').select('id').eq('name', newCigar.name)
-        .eq('brand_account_id', newCigar.brand_id).order('created_at', { ascending: false }).limit(1).single()
+      const { data: newCigarRow } = await supabase.from('cigars').select('id').eq('name', newCigar.name).eq('brand_account_id', newCigar.brand_id).order('created_at', { ascending: false }).limit(1).single()
       if (newCigarRow) {
-        await supabase.from('cigar_designations').insert(
-          newCigarDesignationIds.map(did => ({ cigar_id: newCigarRow.id, designation_id: did }))
-        )
+        await supabase.from('cigar_designations').insert(newCigarDesignationIds.map(did => ({ cigar_id: newCigarRow.id, designation_id: did })))
       }
     }
     setNewCigarMsg(`Cigar "${newCigar.name}" created!`)
@@ -878,7 +894,6 @@ if (cigarDesignations.length === 0) {
   const btnDanger = { padding: '6px 14px', background: '#fbe9e7', color: '#b71c1c', border: '1px solid #f5c6c6', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }
   const btnSuccess = { padding: '6px 14px', background: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }
   const btnWarning = { padding: '6px 14px', background: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }
-  // ✅ Discontinued button style — red pill, toggleable
   const btnDiscontinued = (active: boolean) => ({
     padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
     background: active ? '#F7C1C1' : '#f5f5f5',
@@ -954,6 +969,118 @@ if (cigarDesignations.length === 0) {
                 <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: 0 }}>Cigar Management</h1>
                 <button onClick={() => setShowNewCigar(!showNewCigar)} style={btnPrimary}>+ Add Cigar</button>
               </div>
+
+              {/* ── Pending Cigars Queue ── */}
+              {(pendingCigars.length > 0 || pendingCigarMsg) && (
+                <div style={{ background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: 12, padding: 20, marginBottom: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: pendingCigars.length > 0 ? 14 : 0 }}>
+                    <div>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e65100', margin: '0 0 2px' }}>
+                        ⏳ Pending Cigar Submissions ({pendingCigars.length})
+                      </h3>
+                      <p style={{ fontSize: 12, color: '#8b5e2a', margin: 0 }}>
+                        Submitted by users via the feedback page. Review and approve or reject each one.
+                      </p>
+                    </div>
+                    <button onClick={() => setShowPendingCigars(p => !p)}
+                      style={{ background: 'none', border: '1px solid #ffe0b2', borderRadius: 6, padding: '4px 12px', fontSize: 12, color: '#e65100', cursor: 'pointer', fontWeight: 600 }}>
+                      {showPendingCigars ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+
+                  {pendingCigarMsg && (
+                    <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 6, padding: '8px 14px', marginBottom: 12, fontSize: 13, color: '#2e7d32', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>✓ {pendingCigarMsg}</span>
+                      <button onClick={() => setPendingCigarMsg('')} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer' }}>×</button>
+                    </div>
+                  )}
+
+                  {showPendingCigars && pendingCigars.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {pendingCigars.map(c => {
+                        const isNoBrand = !c.brand_accounts
+                        const hasFreeformBrand = c.description?.includes('[Brand not in system:')
+                        const freeformBrand = hasFreeformBrand
+                          ? c.description?.match(/\[Brand not in system: (.+?)\]/)?.[1]
+                          : null
+
+                        return (
+                          <div key={c.id} style={{ background: '#fff', borderRadius: 10, border: isNoBrand ? '2px solid #ffcc80' : '1px solid #ffe0b2', padding: 18 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 15, fontWeight: 700, color: '#1a0a00' }}>{c.name}</span>
+                                  {c.line && <span style={{ fontSize: 13, color: '#8b5e2a' }}>{c.line}</span>}
+                                  {c.vitola && <span style={{ fontSize: 12, color: '#aaa' }}>{c.vitola}</span>}
+                                  {c.submitted_by_role && (
+                                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10, background: '#f5f0e8', color: '#8b5e2a', fontWeight: 600, textTransform: 'uppercase' as const }}>
+                                      {c.submitted_by_role}
+                                    </span>
+                                  )}
+                                  {c.is_limited && (
+                                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10, background: '#fff3e0', color: '#e65100', fontWeight: 600 }}>LIMITED</span>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: '#5a3a1a', marginBottom: 6 }}>
+                                  {c.brand_accounts ? (
+                                    <span>🏭 <strong>{c.brand_accounts.name}</strong></span>
+                                  ) : freeformBrand ? (
+                                    <span style={{ color: '#e65100', fontWeight: 600 }}>⚠️ Brand not in system: <strong>{freeformBrand}</strong> — needs reconciling</span>
+                                  ) : (
+                                    <span style={{ color: '#b71c1c', fontWeight: 600 }}>⚠️ No brand assigned</span>
+                                  )}
+                                  {c.country_of_origin && <span>🌍 {c.country_of_origin}</span>}
+                                  {c.strength && <span>💪 {c.strength.replace('_', '-')}</span>}
+                                  {c.msrp && <span>💰 ${c.msrp}</span>}
+                                </div>
+
+                                {c.description && !hasFreeformBrand && (
+                                  <p style={{ fontSize: 13, color: '#5a3a1a', margin: '4px 0 0', lineHeight: 1.5, background: '#faf8f5', padding: '8px 12px', borderRadius: 6 }}>
+                                    {c.description}
+                                  </p>
+                                )}
+                                {hasFreeformBrand && c.description && (
+                                  <p style={{ fontSize: 13, color: '#5a3a1a', margin: '4px 0 0', lineHeight: 1.5, background: '#faf8f5', padding: '8px 12px', borderRadius: 6 }}>
+                                    {c.description.replace(/\n\n\[Brand not in system: .+?\]/, '').replace(/\[Brand not in system: .+?\]/, '').trim() || null}
+                                  </p>
+                                )}
+
+                                <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#aaa' }}>
+                                  <span>Submitted {new Date(c.created_at).toLocaleDateString()}</span>
+                                  {(c.users as any)?.username && <span>by {(c.users as any).username}</span>}
+                                  <a href={`/admin/cigar/${c.id}`} style={{ color: '#c4a96a', textDecoration: 'none', fontWeight: 500 }}>Edit details →</a>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+                                <button
+                                  onClick={() => approvePendingCigar(c.id, c.brand_accounts ? c.id : null)}
+                                  disabled={pendingCigarActioning === c.id}
+                                  style={{ ...btnSuccess, padding: '8px 16px', fontSize: 13, opacity: pendingCigarActioning === c.id ? 0.6 : 1 }}>
+                                  {pendingCigarActioning === c.id ? '...' : '✓ Approve'}
+                                </button>
+                                <button
+                                  onClick={() => rejectPendingCigar(c.id)}
+                                  disabled={pendingCigarActioning === c.id}
+                                  style={{ ...btnDanger, padding: '8px 16px', fontSize: 13, opacity: pendingCigarActioning === c.id ? 0.6 : 1 }}>
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {showPendingCigars && pendingCigars.length === 0 && !pendingCigarMsg && (
+                    <p style={{ fontSize: 13, color: '#aaa', margin: '8px 0 0' }}>No pending cigar submissions.</p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Add Cigar form ── */}
               {showNewCigar && (
                 <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1a0a00', margin: '0 0 16px' }}>New Cigar</h3>
@@ -979,8 +1106,8 @@ if (cigarDesignations.length === 0) {
                       </select>
                     </div>
                   </div>
-                 {cigarDesignations.length > 0 && (
-                    <div style={{ gridColumn: '1 / -1' }}>
+                  {cigarDesignations.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
                       <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 8, fontWeight: 600 }}>Exclusivity Designations <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span></label>
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         {cigarDesignations.map(d => {
@@ -1002,6 +1129,8 @@ if (cigarDesignations.length === 0) {
                   </div>
                 </div>
               )}
+
+              {/* ── Cigar filters ── */}
               <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                 <input placeholder="Search cigars..." value={cigarSearch} onChange={e => setCigarSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 280 }} />
                 <select value={cigarStatusFilter} onChange={e => setCigarStatusFilter(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }}>
@@ -1027,6 +1156,8 @@ if (cigarDesignations.length === 0) {
                   </>
                 )}
               </div>
+
+              {/* ── Cigars table ── */}
               <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
@@ -1054,6 +1185,7 @@ if (cigarDesignations.length === 0) {
                           <a href={`/cigar/${c.id}`} style={{ color: '#1a0a00', textDecoration: 'none' }}>{c.name}</a>
                           {c.is_limited && <span style={{ marginLeft: 6, fontSize: 10, background: '#fff3e0', color: '#e65100', padding: '1px 6px', borderRadius: 3 }}>LIMITED</span>}
                           {c.submitted_by_role === 'brand' && <span style={{ marginLeft: 6, fontSize: 10, background: '#e3f2fd', color: '#1565c0', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>BRAND REP</span>}
+                          {c.submitted_by_role === 'registered' && <span style={{ marginLeft: 6, fontSize: 10, background: '#f3e5f5', color: '#6a1b9a', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>USER</span>}
                           {c.is_discontinued && <span style={{ marginLeft: 6, fontSize: 10, background: '#F7C1C1', color: '#791F1F', padding: '1px 6px', borderRadius: 3, fontWeight: 600 }}>DISCONTINUED</span>}
                           {!c.country_of_origin && <span style={{ marginLeft: 6, fontSize: 10, background: '#fbe9e7', color: '#b71c1c', padding: '1px 6px', borderRadius: 3 }}>no country</span>}
                         </td>
@@ -1066,7 +1198,6 @@ if (cigarDesignations.length === 0) {
                         </td>
                         <td style={{ padding: '10px 14px' }}>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            {/* ✅ Discontinued toggle */}
                             <button onClick={() => toggleCigarDiscontinued(c.id, c.is_discontinued)}
                               style={btnDiscontinued(c.is_discontinued)}
                               title={c.is_discontinued ? 'Mark as active' : 'Mark as discontinued'}>
@@ -1091,7 +1222,6 @@ if (cigarDesignations.length === 0) {
             <div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a0a00', margin: '0 0 20px' }}>Brand Management</h1>
 
-              {/* ✅ Discontinued Lines panel */}
               <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div>
@@ -1117,9 +1247,7 @@ if (cigarDesignations.length === 0) {
                     <button onClick={addDiscontinuedLine} style={btnPrimary}>Mark Discontinued</button>
                   </div>
                 </div>
-                {discLineMsg && (
-                  <p style={{ fontSize: 13, color: discLineMsg.includes('Error') ? '#b71c1c' : '#2e7d32', margin: '0 0 12px' }}>{discLineMsg}</p>
-                )}
+                {discLineMsg && <p style={{ fontSize: 13, color: discLineMsg.includes('Error') ? '#b71c1c' : '#2e7d32', margin: '0 0 12px' }}>{discLineMsg}</p>}
                 {discontinuedLines.length > 0 && (
                   <>
                     <input placeholder="Search discontinued lines..." value={discLineSearch} onChange={e => setDiscLineSearch(e.target.value)} style={{ ...inputStyle, maxWidth: 280, marginBottom: 10 }} />
@@ -1138,9 +1266,7 @@ if (cigarDesignations.length === 0) {
                     <p style={{ fontSize: 12, color: '#aaa', margin: '8px 0 0' }}>{filteredDiscLines.length} discontinued line{filteredDiscLines.length !== 1 ? 's' : ''}</p>
                   </>
                 )}
-                {discontinuedLines.length === 0 && (
-                  <p style={{ fontSize: 13, color: '#aaa', margin: 0 }}>No discontinued lines yet.</p>
-                )}
+                {discontinuedLines.length === 0 && <p style={{ fontSize: 13, color: '#aaa', margin: 0 }}>No discontinued lines yet.</p>}
               </div>
 
               <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, marginBottom: 20 }}>
@@ -1230,10 +1356,7 @@ if (cigarDesignations.length === 0) {
                         </td>
                         <td style={{ padding: '10px 14px' }}>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {/* ✅ Discontinued toggle for brands */}
-                            <button onClick={() => toggleBrandDiscontinued(b.id, b.is_discontinued)}
-                              style={btnDiscontinued(b.is_discontinued)}
-                              title={b.is_discontinued ? 'Mark brand as active' : 'Mark brand as discontinued'}>
+                            <button onClick={() => toggleBrandDiscontinued(b.id, b.is_discontinued)} style={btnDiscontinued(b.is_discontinued)} title={b.is_discontinued ? 'Mark brand as active' : 'Mark brand as discontinued'}>
                               {b.is_discontinued ? 'Discontinued' : 'Disc.?'}
                             </button>
                             <button onClick={() => toggleBrandSuspended(b.id, b.suspended)} style={b.suspended ? btnSuccess : btnDanger}>{b.suspended ? 'Reinstate' : 'Suspend'}</button>
@@ -1614,7 +1737,7 @@ if (cigarDesignations.length === 0) {
                     <div key={f.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 18, opacity: f.status === 'read' ? 0.65 : 1 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 600, background: '#f5f0e8', color: '#5a3a1a' }}>{f.type}</span>
+                          <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 600, background: f.type === 'add_cigar' ? '#e3f2fd' : '#f5f0e8', color: f.type === 'add_cigar' ? '#1565c0' : '#5a3a1a' }}>{f.type}</span>
                           <span style={{ fontSize: 12, color: '#aaa' }}>{new Date(f.created_at).toLocaleDateString()}</span>
                           {f.email && <span style={{ fontSize: 12, color: '#8b5e2a' }}>{f.email}</span>}
                         </div>

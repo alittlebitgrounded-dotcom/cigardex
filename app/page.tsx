@@ -52,6 +52,10 @@ function priceTier(msrp: number | null): string {
   return '$$$$$'
 }
 
+function normalize(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 function isCigarDiscontinued(
   cigar: { is_discontinued?: boolean; brand_account_id?: string | null; line?: string | null; brand_accounts?: { id: string } | null },
   discBrandIds: Set<string>,
@@ -277,33 +281,60 @@ export default function Home() {
     setDiscoverLoading(false)
   }
 
-  async function fetchSearchResults() {
+ async function fetchSearchResults() {
     setSearchLoading(true)
-    let query = supabase.from('cigars').select(cigarSelect).eq('status', 'live').order('name').limit(200)
-    if (selectedBrand) query = query.eq('brand_account_id', selectedBrand)
-    if (selectedLine) query = query.eq('line', selectedLine)
-    if (selectedStrength) query = query.eq('strength', selectedStrength)
-    if (selectedCountries.length === 1) query = query.eq('country_of_origin', selectedCountries[0])
-    if (selectedCountries.length > 1) query = query.in('country_of_origin', selectedCountries)
+    const words = search.trim().split(/\s+/).filter(Boolean).map(normalize)
+
+    let cigarQuery = supabase.from('cigars').select(cigarSelect).eq('status', 'live').order('name').limit(200)
+    if (selectedBrand) cigarQuery = cigarQuery.eq('brand_account_id', selectedBrand)
+    if (selectedLine) cigarQuery = cigarQuery.eq('line', selectedLine)
+    if (selectedStrength) cigarQuery = cigarQuery.eq('strength', selectedStrength)
+    if (selectedCountries.length === 1) cigarQuery = cigarQuery.eq('country_of_origin', selectedCountries[0])
+    if (selectedCountries.length > 1) cigarQuery = cigarQuery.in('country_of_origin', selectedCountries)
     if (search.trim()) {
-      const first = search.trim().split(/\s+/)[0]
-      query = query.or(`name.ilike.%${first}%,line.ilike.%${first}%,vitola.ilike.%${first}%`)
+      const first = normalize(search.trim().split(/\s+/)[0])
+      cigarQuery = cigarQuery.or(`name.ilike.%${first}%,line.ilike.%${first}%,vitola.ilike.%${first}%`)
     }
-    const { data } = await query
-    if (data) {
-      const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
-      let filtered = data.filter(c => {
-        const haystack = [c.name, c.line, c.vitola, (c.brand_accounts as any)?.name].filter(Boolean).join(' ').toLowerCase()
+
+    // Second query: find matching brand IDs, then fetch their cigars
+    let brandResults: any[] = []
+    if (search.trim() && !selectedBrand) {
+      const first = normalize(search.trim().split(/\s+/)[0])
+      const { data: matchingBrands } = await supabase
+        .from('brand_accounts')
+        .select('id')
+        .ilike('name', `%${first}%`)
+      if (matchingBrands && matchingBrands.length > 0) {
+        const brandIds = matchingBrands.map((b: any) => b.id)
+        let bQuery = supabase.from('cigars').select(cigarSelect).eq('status', 'live').in('brand_account_id', brandIds).order('name').limit(200)
+        if (selectedLine) bQuery = bQuery.eq('line', selectedLine)
+        if (selectedStrength) bQuery = bQuery.eq('strength', selectedStrength)
+        if (selectedCountries.length === 1) bQuery = bQuery.eq('country_of_origin', selectedCountries[0])
+        if (selectedCountries.length > 1) bQuery = bQuery.in('country_of_origin', selectedCountries)
+        const { data: bData } = await bQuery
+        if (bData) brandResults = bData as any
+      }
+    }
+
+    const { data: cigarData } = await cigarQuery
+    if (cigarData || brandResults.length > 0) {
+      const combined = [...(cigarData ?? []), ...brandResults]
+      const seen = new Set<string>()
+      const deduped = combined.filter((c: any) => {
+        if (seen.has(c.id)) return false
+        seen.add(c.id); return true
+      })
+      let filtered = deduped.filter((c: any) => {
+        const haystack = normalize([c.name, c.line, c.vitola, (c.brand_accounts as any)?.name].filter(Boolean).join(' '))
         return words.length === 0 || words.every(w => haystack.includes(w))
       })
       if (hideDiscontinued) {
-        filtered = filtered.filter(c => !isCigarDiscontinued(c as any, discBrandIds, discLineKeys))
+        filtered = filtered.filter((c: any) => !isCigarDiscontinued(c as any, discBrandIds, discLineKeys))
       }
       setSearchResults(filtered as unknown as Cigar[])
     }
     setSearchLoading(false)
   }
-
   function toggleCountry(country: string) {
     setSelectedCountries(prev => prev.includes(country) ? prev.filter(c => c !== country) : [...prev, country])
   }
