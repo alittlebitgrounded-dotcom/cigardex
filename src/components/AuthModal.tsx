@@ -235,11 +235,11 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
         )}
 
         {/* Close button */}
-        <button  style={{
-          position: 'absolute', top: 16, right: 16,
-          background: 'none', border: 'none', fontSize: 20,
-          cursor: 'pointer', color: '#aaa', lineHeight: 1,
-        }}>✕</button>
+<button onClick={onClose} style={{
+  position: 'absolute', top: 16, right: 16,
+  background: 'none', border: 'none', fontSize: 20,
+  cursor: 'pointer', color: '#aaa', lineHeight: 1,
+}}>✕</button>
       </div>
     </div>
   )

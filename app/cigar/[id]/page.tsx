@@ -30,6 +30,8 @@ type Cigar = {
   status: string
   is_limited: boolean
   is_discontinued: boolean
+description: string | null
+  country_of_origin: string | null
   notes: string | null
   sold_as: string | null
   created_at: string
@@ -775,8 +777,8 @@ export default function CigarDetailPage() {
                       ) && (
                         <span style={{ background: '#F7C1C1', color: '#791F1F', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.04em', marginBottom: 10, display: 'inline-block' }}>Discontinued</span>
                       )}
-                      {cigar.is_limited && (
-                        <span style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.05em', marginBottom: 10, display: 'inline-block' }}>LIMITED / DISCONTINUED</span>
+{cigar.is_limited && (
+                        <span style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4, letterSpacing: '0.05em', marginBottom: 10, display: 'inline-block', marginRight: 6 }}>LIMITED EDITION</span>
                       )}
                       {cigarDesignations.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
@@ -789,6 +791,11 @@ export default function CigarDetailPage() {
                       <h1 style={{ color: '#1a0a00', fontSize: 28, fontWeight: 700, margin: '0 0 6px', lineHeight: 1.2 }}>{cigar.name}</h1>
                       {cigar.line && !cigar.name.toLowerCase().includes(cigar.line.toLowerCase()) && (
                         <p style={{ color: '#8b5e2a', fontSize: 15, margin: '0 0 16px' }}>{cigar.line}</p>
+                      )}
+                      {(cigar as any).description && (
+                        <p style={{ fontSize: 14, color: '#5a3a1a', lineHeight: 1.7, margin: '0 0 16px', fontStyle: 'italic' }}>
+                          {(cigar as any).description}
+                        </p>
                       )}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                         {cigar.vitola && <span style={{ background: '#f5f0e8', color: '#5a3a1a', fontSize: 13, padding: '4px 12px', borderRadius: 6, fontWeight: 500 }}>{cigar.vitola}</span>}
@@ -1340,10 +1347,11 @@ export default function CigarDetailPage() {
               </div>
             )}
 
-            {mainTab === 'timeline' && (
-              <CigarTimeline cigarId={cigar.id} userRole={currentUserRole} userId={currentUser?.id ?? null} />
-            )}
-          </div>
+        {mainTab === 'timeline' && (
+  <CigarTimeline targetId={cigar.id} targetType="cigar" userRole={currentUserRole} userId={currentUser?.id ?? null} />
+)}
+        
+              </div>
 
           <div>
             <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 24, position: 'sticky', top: 88 }}>
@@ -1356,7 +1364,7 @@ export default function CigarDetailPage() {
                 ['Wrapper', cigar.wrapper_color ? `${cigar.wrapper_color}${cigar.wrapper_origin ? ` · ${cigar.wrapper_origin}` : ''}` : cigar.wrapper_origin],
                 ['Binder', cigar.binder_origin],
                 ['Filler', cigar.filler_origins],
-                ['UPC', cigar.upc],
+                ['Made In', (cigar as any).country_of_origin],
                 ['Price Range', priceTier(cigar.msrp)],
                 ['Sold As', cigar.sold_as],
               ].filter(([, val]) => val).map(([label, val]) => (

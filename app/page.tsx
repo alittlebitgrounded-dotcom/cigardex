@@ -82,15 +82,16 @@ function CigarCard({ cigar, badge, discBrandIds, discLineKeys }: {
 }) {
   const disc = isCigarDiscontinued(cigar, discBrandIds, discLineKeys)
   return (
-    <div style={{
+    <a href={`/cigar/${cigar.id}`} style={{
       background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0',
       padding: 18, width: 240, flexShrink: 0,
       boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
       transition: 'box-shadow 0.15s, transform 0.15s',
       opacity: disc ? 0.85 : 1,
+      textDecoration: 'none', display: 'block',
     }}
-      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-2px)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)' }}
     >
       <div style={{ display: 'flex', gap: 6, marginBottom: badge || disc ? 8 : 0, flexWrap: 'wrap' }}>
         {badge && <div style={{ background: '#1a0a00', color: '#c4a96a', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, letterSpacing: '0.06em' }}>{badge}</div>}
@@ -112,9 +113,8 @@ function CigarCard({ cigar, badge, discBrandIds, discLineKeys }: {
             <span style={{ color: '#8b5e2a', fontSize: 11, display: 'block' }}>{cigar.review_count} review{cigar.review_count !== 1 ? 's' : ''}</span>
           )}
         </div>
-        <a href={`/cigar/${cigar.id}`} style={{ color: '#c4a96a', fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>View →</a>
       </div>
-    </div>
+    </a>
   )
 }
 
@@ -458,10 +458,10 @@ export default function Home() {
                 {searchResults.map(cigar => {
                   const disc = isCigarDiscontinued(cigar as any, discBrandIds, discLineKeys)
                   return (
-                    <div key={cigar.id}
-                      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, transform 0.15s', opacity: disc ? 0.85 : 1 }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+                    <a key={cigar.id} href={`/cigar/${cigar.id}`}
+                      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, transform 0.15s', opacity: disc ? 0.85 : 1, textDecoration: 'none', display: 'block' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-2px)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)' }}
                     >
                       {disc && <div style={{ marginBottom: 8 }}><DiscontinuedBadge /></div>}
                       <p style={{ color: '#c4a96a', fontSize: 12, fontWeight: 600, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{cigar.brand_accounts?.name}</p>
@@ -476,9 +476,8 @@ export default function Home() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
                         <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
-                        <a href={`/cigar/${cigar.id}`} style={{ color: '#c4a96a', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>View details →</a>
                       </div>
-                    </div>
+                    </a>
                   )
                 })}
               </div>
@@ -501,10 +500,10 @@ export default function Home() {
                 {filteredDiscover.map(cigar => {
                   const disc = isCigarDiscontinued(cigar as any, discBrandIds, discLineKeys)
                   return (
-                    <div key={cigar.id}
-                      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, transform 0.15s', opacity: disc ? 0.85 : 1 }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+                    <a key={cigar.id} href={`/cigar/${cigar.id}`}
+                      style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0', padding: 20, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, transform 0.15s', opacity: disc ? 0.85 : 1, textDecoration: 'none', display: 'block' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-2px)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)' }}
                     >
                       {disc && <div style={{ marginBottom: 8 }}><DiscontinuedBadge /></div>}
                       <p style={{ color: '#c4a96a', fontSize: 12, fontWeight: 600, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{cigar.brand_accounts?.name}</p>
@@ -518,9 +517,8 @@ export default function Home() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
                         <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
-                        <a href={`/cigar/${cigar.id}`} style={{ color: '#c4a96a', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>View details →</a>
                       </div>
-                    </div>
+                    </a>
                   )
                 })}
               </div>

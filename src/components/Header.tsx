@@ -42,9 +42,8 @@ export default function Header() {
       setUserProfile(data)
       if (INDUSTRY_ROLES.includes(data.role)) {
         const dismissed = sessionStorage.getItem(`role_banner_dismissed_${userId}`)
-       if (!dismissed) {
+        if (!dismissed) {
           setShowRoleBanner(true)
-          // Redirect to /pro on first login if not already there
           if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/pro')) {
             const firstLogin = sessionStorage.getItem(`pro_redirected_${userId}`)
             if (!firstLogin) {
@@ -106,7 +105,7 @@ export default function Header() {
         background: '#1a0a00', padding: '0 32px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         height: 64, position: 'sticky', top: showRoleBanner ? 45 : 0, zIndex: 100,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>🍂</span>
@@ -142,33 +141,42 @@ export default function Header() {
                   </span>
                 )}
               </button>
+
               {showUserMenu && (
-                <div style={{
-                  position: 'absolute', right: 0, top: '100%', marginTop: 8,
-                  background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, overflow: 'hidden', zIndex: 200,
-                }}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0e8dc' }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1a0a00' }}>{userProfile?.username}</p>
-                    <p style={{ margin: 0, fontSize: 12, color: '#8b5e2a' }}>{user.email}</p>
+                <>
+                  {/* Invisible backdrop — click outside to close */}
+                  <div
+                    onClick={() => setShowUserMenu(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 199 }}
+                  />
+                  {/* Dropdown */}
+                  <div style={{
+                    position: 'absolute', right: 0, top: '100%', marginTop: 8,
+                    background: '#fff', borderRadius: 10, border: '1px solid #e8ddd0',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, overflow: 'hidden', zIndex: 200,
+                  }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0e8dc' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1a0a00' }}>{userProfile?.username}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: '#8b5e2a' }}>{user.email}</p>
+                      {isIndustry && (
+                        <p style={{ margin: '4px 0 0', fontSize: 11, color: '#c4a96a', fontWeight: 600 }}>
+                          ✓ {ROLE_LABELS[userProfile.role]} — Verified
+                        </p>
+                      )}
+                    </div>
+                    <a href={`/profile/${userProfile?.username}`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Profile</a>
+                    <a href="/humidor" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Humidor</a>
+                    <a href="/wishlist" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Wishlist</a>
+                    <a href={`/profile/${userProfile?.username}?tab=reviews`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Reviews</a>
                     {isIndustry && (
-                      <p style={{ margin: '4px 0 0', fontSize: 11, color: '#c4a96a', fontWeight: 600 }}>
-                        ✓ {ROLE_LABELS[userProfile.role]} — Verified
-                      </p>
+                      <a href="/pro" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none', borderTop: '1px solid #f0e8dc' }}>My Dashboard</a>
                     )}
+                    {(userProfile?.role === 'super_admin' || userProfile?.role === 'moderator') && (
+                      <a href="/admin" style={{ display: 'block', padding: '10px 16px', borderTop: '1px solid #f0e8dc', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>Admin Panel</a>
+                    )}
+                    <button onClick={handleSignOut} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', fontSize: 14, color: '#b71c1c', cursor: 'pointer', borderTop: '1px solid #f0e8dc' }}>Sign Out</button>
                   </div>
-                  <a href={`/profile/${userProfile?.username}`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Profile</a>
-                  <a href="/humidor" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Humidor</a>
-                  <a href="/wishlist" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Wishlist</a>
-                  <a href={`/profile/${userProfile?.username}?tab=reviews`} style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>My Reviews</a>
-                  {isIndustry && (
-                    <a href="/pro" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#1a0a00', textDecoration: 'none', borderTop: '1px solid #f0e8dc' }}>My Dashboard</a>
-                  )}
-                  {(userProfile?.role === 'super_admin' || userProfile?.role === 'moderator') && (
-                    <a href="/admin" style={{ display: 'block', padding: '10px 16px', borderTop: '1px solid #f0e8dc', fontSize: 14, color: '#1a0a00', textDecoration: 'none' }}>Admin Panel</a>
-                  )}
-                  <button onClick={handleSignOut} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', fontSize: 14, color: '#b71c1c', cursor: 'pointer', borderTop: '1px solid #f0e8dc' }}>Sign Out</button>
-                </div>
+                </>
               )}
             </div>
           ) : (

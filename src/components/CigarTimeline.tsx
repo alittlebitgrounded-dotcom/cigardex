@@ -130,9 +130,10 @@ export default function CigarTimeline({ targetId, userRole, userId, targetType =
     const precision = datePrecision(form.month, form.day)
 
     const { error } = await supabase.from('cigar_timeline').insert({
-      cigar_id:       targetType === 'brand' ? null : targetId,
-      brand_id:       targetType === 'brand' ? targetId : null,
-      event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
+cigar_id:       targetType === 'brand' ? null : targetId,
+brand_id:       targetType === 'brand' ? targetId : null,
+event_type:     form.event_type,
+event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : dateString.length === 7 ? `${dateString}-01` : dateString) : null,
       date_precision: precision,
       title:          form.title.trim(),
       body:           form.body.trim() || null,
