@@ -33,24 +33,21 @@ export default function BrandsPage() {
       .order('name')
 
     if (data) {
-      // Get cigar counts per brand
+      // Count cigars per brand using a direct query with group-by via RPC
       const { data: counts } = await supabase
-        .from('cigars')
-        .select('brand_account_id')
-        .eq('status', 'live')
+        .rpc('get_live_cigar_counts_by_brand')
 
       const countMap: Record<string, number> = {}
-      counts?.forEach(c => {
-        if (c.brand_account_id) countMap[c.brand_account_id] = (countMap[c.brand_account_id] || 0) + 1
+      counts?.forEach((c: { brand_account_id: string; count: number }) => {
+        countMap[c.brand_account_id] = Number(c.count)
       })
 
       const withCounts = data
         .map(b => ({ ...b, cigar_count: countMap[b.id] || 0 }))
-        .filter(b => b.cigar_count > 0) // only brands with cigars
+        .filter(b => b.cigar_count > 0)
 
       setBrands(withCounts)
 
-      // Get unique countries
       const uniqueCountries = [...new Set(
         withCounts.map(b => b.country_of_origin).filter(Boolean) as string[]
       )].sort()
