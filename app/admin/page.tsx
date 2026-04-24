@@ -1467,7 +1467,7 @@ export default function AdminPage() {
                             <button onClick={() => rejectField(edit, key)} style={{ ...btnDanger, padding: '4px 10px', fontSize: 12 }}>✕ Skip</button>
                           </div>
                         ))}
-                        {edit.changes._reason && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '10px 0 0', fontStyle: 'italic' }}>Reason: {String(edit.changes._reason)}</p>}
+                        {edit.changes._reason && <p style={{ fontSize: 12, color: '#8b5e2a', margin: '10px 0 0', fontStyle: 'italic' as const }}>Reason: {String(edit.changes._reason)}</p>}
                       </div>
                     </div>
                   ))}

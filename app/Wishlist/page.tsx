@@ -60,7 +60,7 @@ export default function WishlistPage() {
       .order('added_at', { ascending: false })
 
     if (data) {
-const cigarIds = data.map(d => (d.cigars as any)?.id).filter(Boolean) as string[]
+      const cigarIds = data.map(d => (d.cigars as any)?.id).filter(Boolean) as string[]
       let ratingsMap: Record<string, number> = {}
 
       if (cigarIds.length > 0) {
@@ -72,8 +72,8 @@ const cigarIds = data.map(d => (d.cigars as any)?.id).filter(Boolean) as string[
 
       setItems(data.map(d => ({
         ...d,
-        cigars: d.cigars as WishlistItem['cigars'],
-        userRating: d.cigars?.id ? ratingsMap[d.cigars.id] ?? null : null,
+        cigars: d.cigars as unknown as WishlistItem['cigars'],
+        userRating: (d.cigars as any)?.id ? ratingsMap[(d.cigars as any).id] ?? null : null,
       })))
     }
     setLoading(false)
@@ -288,7 +288,7 @@ function WishlistListItem({ item, onMoveToHumidor, onRemove }: {
           <button onClick={() => onRemove(item)} style={{ padding: '7px 12px', background: '#b71c1c', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
         )}
       </div>
-   
+      <Footer />
     </div>
   )
 }

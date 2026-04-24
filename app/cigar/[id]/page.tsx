@@ -1101,7 +1101,7 @@ export default function CigarDetailPage() {
                                         </div>
                                       )}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' as const }}>
+                                    <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' as const }}>
                                       {inv.price && <span style={{ fontWeight: 700, fontSize: 16, color: '#1a0a00' }}>${inv.price.toFixed(2)}</span>}
                                       <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 4, background: inv.in_stock ? '#e8f5e9' : '#fbe9e7', color: inv.in_stock ? '#2e7d32' : '#b71c1c', fontWeight: 600 }}>
                                         {inv.in_stock ? 'In Stock' : 'Out of Stock'}

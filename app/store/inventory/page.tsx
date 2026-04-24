@@ -144,11 +144,11 @@ export default function StoreInventoryPage() {
         onClick={() => toggleBrand(brand.id)}
         disabled={!!toggling}
         style={{
-          padding: '6px 14px', borderRadius: 20, border: 'none', fontSize: 13, fontWeight: carried ? 700 : 500,
+          padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: carried ? 700 : 500,
           cursor: toggling ? 'not-allowed' : 'pointer',
           background: carried ? '#1a0a00' : '#fff',
           color: carried ? '#f5e6c8' : '#5a3a1a',
-          border: `1px solid ${carried ? '#1a0a00' : '#d4b896'}` as any,
+          border: `1px solid ${carried ? '#1a0a00' : '#d4b896'}`,
           opacity: isToggling ? 0.5 : 1,
           transition: 'all 0.1s',
         }}>

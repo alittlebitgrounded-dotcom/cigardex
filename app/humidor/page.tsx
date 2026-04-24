@@ -65,7 +65,7 @@ export default function HumidorPage() {
       .order('added_at', { ascending: false })
 
     if (data) {
-      const cigarIds = data.map(d => d.cigars?.id).filter(Boolean) as string[]
+      const cigarIds = data.map(d => (d.cigars as any)?.id).filter(Boolean) as string[]
       let ratingsMap: Record<string, number> = {}
 
       if (cigarIds.length > 0) {
@@ -83,8 +83,8 @@ export default function HumidorPage() {
 
       setItems(data.map(d => ({
         ...d,
-        cigars: d.cigars as HumidorItem['cigars'],
-        userRating: d.cigars?.id ? ratingsMap[d.cigars.id] ?? null : null,
+        cigars: d.cigars as unknown as HumidorItem['cigars'],
+        userRating: (d.cigars as any)?.id ? ratingsMap[(d.cigars as any).id] ?? null : null,
       })))
     }
     setLoading(false)
@@ -211,6 +211,8 @@ export default function HumidorPage() {
           </div>
         )}
       </div>
+
+      <Footer />
     </div>
   )
 }
@@ -341,7 +343,6 @@ function HumidorListItem({ item, onMoveToWishlist, onRemove }: {
           <button onClick={() => onRemove(item)} style={{ padding: '7px 12px', background: '#b71c1c', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
         )}
       </div>
-      <Footer />
     </div>
   )
 }
