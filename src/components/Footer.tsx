@@ -8,7 +8,7 @@ export default function Footer() {
       background: '#1a0a00',
       borderTop: '1px solid rgba(196,169,106,0.15)',
       padding: '20px 32px',
-      fontFamily: 'system-ui, sans-serif',
+      fontFamily: 'Georgia, serif',
     }}>
       <div style={{
         maxWidth: 1400,
@@ -44,3 +44,4 @@ export default function Footer() {
     </footer>
   )
 }
+

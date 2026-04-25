@@ -278,13 +278,13 @@ export default function AdminUserPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading user...</p>
     </div>
   )
 
   if (!user) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>User not found.</p>
     </div>
   )
@@ -313,7 +313,7 @@ export default function AdminUserPage() {
   ] as { key: AdminSection; label: string }[]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
 
       <header style={{ background: '#1a0a00', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64, position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -661,3 +661,4 @@ export default function AdminUserPage() {
     </div>
   )
 }
+

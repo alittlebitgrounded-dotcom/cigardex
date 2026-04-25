@@ -907,7 +907,7 @@ export default function AdminPage() {
   }
 
   if (!authChecked) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Checking access...</p>
     </div>
   )
@@ -957,7 +957,7 @@ export default function AdminPage() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <header style={{ background: '#1a0a00', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64, position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <a href="/" style={{ color: '#f5e6c8', fontSize: 20, fontWeight: 700, textDecoration: 'none' }}>🍂 CigarDex</a>
@@ -1706,7 +1706,7 @@ export default function AdminPage() {
                         <div style={{ marginBottom: 14 }}>
                           <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600 }}>Note <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span></label>
                           <textarea value={appNotes[app.id] ?? ''} onChange={e => setAppNotes(prev => ({ ...prev, [app.id]: e.target.value }))} rows={2}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'Georgia, serif', lineHeight: 1.6 }} />
                         </div>
                       )}
                       {app.status === 'pending' && (
@@ -1918,7 +1918,7 @@ export default function AdminPage() {
                                 <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Day</label><input type="number" min="1" max="31" value={timelineEditForm.day} onChange={e => setTimelineEditForm(p => ({ ...p, day: e.target.value }))} placeholder="—" style={inputStyle} /></div>
                               </div>
                               <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Title</label><input value={timelineEditForm.title} onChange={e => setTimelineEditForm(p => ({ ...p, title: e.target.value }))} style={inputStyle} /></div>
-                              <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Details (optional)</label><textarea value={timelineEditForm.body} onChange={e => setTimelineEditForm(p => ({ ...p, body: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui', lineHeight: 1.6 }} /></div>
+                              <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Details (optional)</label><textarea value={timelineEditForm.body} onChange={e => setTimelineEditForm(p => ({ ...p, body: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'Georgia, serif', lineHeight: 1.6 }} /></div>
                               <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Source (optional)</label><input value={timelineEditForm.source} onChange={e => setTimelineEditForm(p => ({ ...p, source: e.target.value }))} style={inputStyle} /></div>
                               <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
                                 <button onClick={() => saveAndApproveTimelineEdit(entry.id)} disabled={timelineSaving} style={{ ...btnSuccess, padding: '8px 18px', fontSize: 13 }}>{timelineSaving ? 'Saving...' : '✓ Save & Approve'}</button>
@@ -2107,7 +2107,7 @@ export default function AdminPage() {
                                     <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Day</label><input type="number" min="1" max="31" value={liveEditForm.day} onChange={e => setLiveEditForm(p => ({ ...p, day: e.target.value }))} style={inputStyle} /></div>
                                   </div>
                                   <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Title</label><input value={liveEditForm.title} onChange={e => setLiveEditForm(p => ({ ...p, title: e.target.value }))} style={inputStyle} /></div>
-                                  <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Details</label><textarea value={liveEditForm.body} onChange={e => setLiveEditForm(p => ({ ...p, body: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui', lineHeight: 1.6 }} /></div>
+                                  <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Details</label><textarea value={liveEditForm.body} onChange={e => setLiveEditForm(p => ({ ...p, body: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'Georgia, serif', lineHeight: 1.6 }} /></div>
                                   <div><label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4 }}>Source</label><input value={liveEditForm.source} onChange={e => setLiveEditForm(p => ({ ...p, source: e.target.value }))} style={inputStyle} /></div>
                                   <div style={{ display: 'flex', gap: 10 }}>
                                     <button onClick={() => saveLiveEdit(entry.id)} disabled={liveSaving} style={{ ...btnSuccess, padding: '8px 18px', fontSize: 13 }}>{liveSaving ? 'Saving...' : '✓ Save'}</button>
@@ -2198,3 +2198,4 @@ export default function AdminPage() {
     </div>
   )
 }
+

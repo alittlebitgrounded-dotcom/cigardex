@@ -117,7 +117,7 @@ export default function HumidorPage() {
   const totalCigars = items.reduce((sum, i) => sum + i.quantity, 0)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       {/* Breadcrumb */}
@@ -346,3 +346,4 @@ function HumidorListItem({ item, onMoveToWishlist, onRemove }: {
     </div>
   )
 }
+

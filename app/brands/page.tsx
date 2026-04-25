@@ -76,13 +76,13 @@ export default function BrandsPage() {
   const letters = Object.keys(grouped).sort()
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading brands...</p>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
 <Header />
 
       {/* Breadcrumb */}

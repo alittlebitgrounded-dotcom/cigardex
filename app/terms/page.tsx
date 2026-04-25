@@ -7,7 +7,7 @@ export default function TermsPage() {
   const updated = 'March 2026'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif', display: 'flex', flexDirection: 'column' }}>
       <Header />
 
       <div style={{ flex: 1, maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
@@ -58,3 +58,4 @@ export default function TermsPage() {
     </div>
   )
 }
+

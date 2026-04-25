@@ -107,7 +107,7 @@ export default function ReviewerSetupPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
@@ -116,14 +116,14 @@ export default function ReviewerSetupPage() {
     width: '100%', padding: '10px 12px', borderRadius: 7,
     border: '1px solid #d4b896', fontSize: 14, outline: 'none',
     boxSizing: 'border-box', background: '#fff', color: '#1a0a00',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: 'Georgia, serif',
   }
   const labelStyle: React.CSSProperties = {
     fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600,
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '36px 32px' }}>
@@ -205,3 +205,4 @@ export default function ReviewerSetupPage() {
     </div>
   )
 }
+

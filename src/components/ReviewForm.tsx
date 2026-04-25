@@ -374,7 +374,7 @@ export default function ReviewForm({ cigarId, cigarName, userId, userRole, exist
             value={sourceUrl}
             onChange={e => setSourceUrl(e.target.value)}
             placeholder="https://yourpublication.com/review/cigar-name"
-            style={{ width: '100%', padding: '10px 12px', borderRadius: 7, border: '1px solid #d4b896', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'system-ui' }}
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 7, border: '1px solid #d4b896', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'Georgia, serif' }}
           />
         </div>
       )}
@@ -420,7 +420,7 @@ export default function ReviewForm({ cigarId, cigarName, userId, userRole, exist
             <h4 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 12px' }}>Tasting Notes</h4>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Describe what you tasted — the first third, how it evolved, what hit you on the retrohale..."
-              rows={4} style={{ width: '100%', padding: '12px 14px', fontSize: 14, border: '1px solid #d4b896', borderRadius: 8, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
+              rows={4} style={{ width: '100%', padding: '12px 14px', fontSize: 14, border: '1px solid #d4b896', borderRadius: 8, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'Georgia, serif', lineHeight: 1.6 }} />
           </div>
           <div style={{ background: '#fff', borderRadius: 10, padding: 20, marginBottom: 14, border: '1px solid #e8ddd0' }}>
             <h4 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 4px' }}>Flavor Characteristics</h4>
@@ -498,7 +498,7 @@ export default function ReviewForm({ cigarId, cigarName, userId, userRole, exist
               <h4 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 12px' }}>What changed?</h4>
               <textarea value={revisionNotes} onChange={e => setRevisionNotes(e.target.value)}
                 placeholder="e.g. Tried a fresh box, updated my scores accordingly..." rows={3}
-                style={{ width: '100%', padding: '12px 14px', fontSize: 14, border: '1px solid #d4b896', borderRadius: 8, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif' }} />
+                style={{ width: '100%', padding: '12px 14px', fontSize: 14, border: '1px solid #d4b896', borderRadius: 8, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'Georgia, serif' }} />
             </div>
           )}
         </div>

@@ -388,7 +388,7 @@ event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : 
               <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 6, fontWeight: 600 }}>
                 Details <span style={{ color: '#bbb', fontWeight: 400 }}>(optional)</span>
               </label>
-              <textarea value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={3} placeholder="Additional context, background, or notes..." style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
+              <textarea value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={3} placeholder="Additional context, background, or notes..." style={{ ...inputStyle, resize: 'vertical', fontFamily: 'Georgia, serif', lineHeight: 1.6 }} />
             </div>
 
             <div>
@@ -432,3 +432,4 @@ event_date:     dateString ? (dateString.length === 4 ? `${dateString}-01-01` : 
     </div>
   )
 }
+

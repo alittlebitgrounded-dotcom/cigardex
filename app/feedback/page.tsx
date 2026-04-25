@@ -175,20 +175,20 @@ export default function FeedbackPage() {
     width: '100%', padding: '10px 12px', borderRadius: 7,
     border: '1px solid #d4b896', fontSize: 14, outline: 'none',
     boxSizing: 'border-box', background: '#fff', color: '#1a0a00',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: 'Georgia, serif',
   }
   const labelStyle: React.CSSProperties = {
     fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 5, fontWeight: 600,
   }
 
   if (authLoading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif', display: 'flex', flexDirection: 'column' }}>
       <Header />
 
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '48px 32px', textAlign: 'center' }}>
@@ -425,7 +425,7 @@ export default function FeedbackPage() {
                     <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4, fontWeight: 600 }}>Your feedback *</label>
                     <textarea value={form.message} onChange={e => setForm(prev => ({ ...prev, message: e.target.value }))} rows={5}
                       placeholder="Tell us what's on your mind..."
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'Georgia, serif', lineHeight: 1.6 }} />
                   </div>
                   <div>
                     <label style={{ fontSize: 12, color: '#8b5e2a', display: 'block', marginBottom: 4, fontWeight: 600 }}>Your email <span style={{ color: '#bbb', fontWeight: 400 }}>(optional — only if you want a reply)</span></label>
@@ -461,3 +461,4 @@ export default function FeedbackPage() {
     </div>
   )
 }
+

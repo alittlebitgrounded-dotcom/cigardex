@@ -106,7 +106,7 @@ export default function WishlistPage() {
   })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       {/* Breadcrumb */}

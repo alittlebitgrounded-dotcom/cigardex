@@ -82,7 +82,7 @@ export default function BrowseNewest() {
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
       <div style={{ background: '#f0e8dc', padding: '10px 32px', fontSize: 13, color: '#8b5e2a' }}>
         <a href="/" style={{ color: '#8b5e2a', textDecoration: 'none' }}>Home</a>
@@ -154,3 +154,4 @@ export default function BrowseNewest() {
     </div>
   )
 }
+

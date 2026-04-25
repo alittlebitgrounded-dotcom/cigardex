@@ -111,13 +111,13 @@ export default function StoreProfilePage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
 
   if (notFound || !store) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
       <div style={{ maxWidth: 600, margin: '80px auto', textAlign: 'center', padding: '0 24px' }}>
         <p style={{ fontSize: 48, marginBottom: 16 }}>🏪</p>
@@ -136,7 +136,7 @@ export default function StoreProfilePage() {
   const hoursEntries = store.hours ? DAYS.filter(d => store.hours![d.key]) : []
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       {/* Hero */}
@@ -203,7 +203,7 @@ export default function StoreProfilePage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>
                 Brands Carried
-                <span style={{ fontSize: 13, color: '#8b5e2a', fontWeight: 400, fontFamily: 'system-ui', marginLeft: 8 }}>
+                <span style={{ fontSize: 13, color: '#8b5e2a', fontWeight: 400, fontFamily: 'Georgia, serif', marginLeft: 8 }}>
                   {brands.length > 0 ? `${brands.length} brand${brands.length !== 1 ? 's' : ''}` : ''}
                 </span>
               </h2>
@@ -241,7 +241,7 @@ export default function StoreProfilePage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>
                 Reviews
-                {avgRating && <span style={{ fontSize: 13, color: '#8b5e2a', fontWeight: 400, fontFamily: 'system-ui', marginLeft: 8 }}>{avgRating}/10 avg</span>}
+                {avgRating && <span style={{ fontSize: 13, color: '#8b5e2a', fontWeight: 400, fontFamily: 'Georgia, serif', marginLeft: 8 }}>{avgRating}/10 avg</span>}
               </h2>
               <span style={{ fontSize: 13, color: '#aaa' }}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
             </div>
@@ -358,3 +358,4 @@ export default function StoreProfilePage() {
     </div>
   )
 }
+

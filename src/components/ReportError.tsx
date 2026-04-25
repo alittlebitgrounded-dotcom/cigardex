@@ -110,7 +110,7 @@ export default function ReportError({ targetType, targetId, targetName, userId, 
             onChange={e => setMessage(e.target.value)}
             placeholder="e.g. The correct country is Honduras, not Nicaragua..."
             rows={3}
-            style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, fontFamily: 'Georgia, serif', lineHeight: 1.6 }}
           />
         </div>
 
@@ -137,3 +137,4 @@ export default function ReportError({ targetType, targetId, targetName, userId, 
     </div>
   )
 }
+

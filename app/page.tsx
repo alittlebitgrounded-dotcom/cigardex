@@ -429,7 +429,7 @@ export default function Home() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '48px 32px', textAlign: 'center' }}>
         <h1 style={{ color: '#f5e6c8', fontSize: 34, fontWeight: 700, margin: '0 0 8px' }}>Find Your Perfect Cigar</h1>
@@ -530,3 +530,4 @@ export default function Home() {
     </div>
   )
 }
+

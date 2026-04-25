@@ -170,7 +170,7 @@ const [showReportError, setShowReportError] = useState(false)
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
@@ -178,7 +178,7 @@ const [showReportError, setShowReportError] = useState(false)
   const isNew = cigarId === 'new'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
 
       {/* Header */}
       <header style={{ background: '#1a0a00', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64, position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
@@ -320,7 +320,7 @@ const [showReportError, setShowReportError] = useState(false)
             <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 4px' }}>Description</h3>
             <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 12px' }}>Public-facing — story, background, or notes about this cigar shown on the detail page</p>
             <textarea value={form.description} onChange={field('description')} rows={4}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'Georgia, serif', lineHeight: 1.6 }} />
           </div>
 
           {/* Admin notes — internal only */}
@@ -328,7 +328,7 @@ const [showReportError, setShowReportError] = useState(false)
             <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a0a00', margin: '0 0 4px' }}>Admin Notes</h3>
             <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 12px' }}>Internal only — data source, verification status, issues</p>
             <textarea value={form.notes} onChange={field('notes')} rows={2}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }} />
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'Georgia, serif', lineHeight: 1.6 }} />
           </div>
 
           {/* Save */}
@@ -351,3 +351,4 @@ const [showReportError, setShowReportError] = useState(false)
     </div>
   )
 }
+

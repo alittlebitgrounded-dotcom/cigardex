@@ -206,7 +206,7 @@ export default function StoreSetupPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
@@ -215,7 +215,7 @@ export default function StoreSetupPage() {
     width: '100%', padding: '10px 12px', borderRadius: 7,
     border: '1px solid #d4b896', fontSize: 14, outline: 'none',
     boxSizing: 'border-box', background: '#fff', color: '#1a0a00',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: 'Georgia, serif',
   }
 
   const labelStyle: React.CSSProperties = {
@@ -228,7 +228,7 @@ export default function StoreSetupPage() {
   const availableToRequest = globalDesignations.filter(d => !addedNames.includes(d.name))
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '36px 32px' }}>
@@ -448,7 +448,7 @@ export default function StoreSetupPage() {
                   <input value={customInput} onChange={e => setCustomInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') requestCustomDesignation() }}
                     placeholder='e.g. "Best Cigar Shop — Springfield 2024"'
-                    style={{ flex: 1, padding: '10px 12px', borderRadius: 7, border: '1px solid #d4b896', fontSize: 13, outline: 'none', fontFamily: 'system-ui' }} />
+                    style={{ flex: 1, padding: '10px 12px', borderRadius: 7, border: '1px solid #d4b896', fontSize: 13, outline: 'none', fontFamily: 'Georgia, serif' }} />
                   <button onClick={requestCustomDesignation} disabled={designationSaving}
                     style={{ padding: '10px 18px', borderRadius: 7, border: 'none', background: '#1a0a00', color: '#f5e6c8', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: designationSaving ? 0.6 : 1 }}>
                     Request
@@ -464,3 +464,4 @@ export default function StoreSetupPage() {
     </div>
   )
 }
+

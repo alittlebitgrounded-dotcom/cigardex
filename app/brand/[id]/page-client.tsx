@@ -270,13 +270,13 @@ export default function BrandPage() {
   })
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
 
   if (!brand) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Brand not found.</p>
     </div>
   )
@@ -286,7 +286,7 @@ export default function BrandPage() {
   const brandIsDisc = brand.is_discontinued
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       <div style={{ background: '#f0e8dc', padding: '10px 32px', fontSize: 13, color: '#8b5e2a' }}>
@@ -479,7 +479,7 @@ export default function BrandPage() {
                   </div>
                   <textarea value={aboutDraft} onChange={e => setAboutDraft(e.target.value)} rows={10}
                     placeholder="Tell the CigarDex community about your brand..."
-                    style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif', lineHeight: 1.7, marginBottom: 14 }} />
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.7, marginBottom: 14 }} />
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button onClick={saveAbout} disabled={savingAbout}
                       style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#1a0a00', color: '#f5e6c8', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: savingAbout ? 0.7 : 1 }}>
@@ -542,3 +542,4 @@ export default function BrandPage() {
     </div>
   )
 }
+

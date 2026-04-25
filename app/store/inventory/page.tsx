@@ -86,7 +86,7 @@ export default function StoreInventoryPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
@@ -166,7 +166,7 @@ export default function StoreInventoryPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       <Header />
 
       <div style={{ background: 'linear-gradient(135deg, #2c1206 0%, #1a0a00 100%)', padding: '36px 32px' }}>
@@ -231,7 +231,7 @@ export default function StoreInventoryPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by brand name or country..."
-            style={{ width: '100%', padding: '11px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 20, fontFamily: 'system-ui' }}
+            style={{ width: '100%', padding: '11px 14px', borderRadius: 8, border: '1px solid #d4b896', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 20, fontFamily: 'Georgia, serif' }}
           />
 
           {/* Letter jump bar */}
@@ -281,3 +281,4 @@ export default function StoreInventoryPage() {
     </div>
   )
 }
+

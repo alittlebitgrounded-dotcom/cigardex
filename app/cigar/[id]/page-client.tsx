@@ -559,12 +559,12 @@ export default function CigarDetailPage() {
   const showDivider = pressReviewsOnPage.length > 0 && communityReviewsOnPage.length > 0
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Loading...</p>
     </div>
   )
   if (!cigar) return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <p style={{ color: '#8b5e2a' }}>Cigar not found.</p>
     </div>
   )
@@ -738,7 +738,7 @@ export default function CigarDetailPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'Georgia, serif' }}>
       {toastMessage && (
         <div style={{ position: 'fixed', top: 80, right: 24, background: '#1a0a00', color: '#f5e6c8', padding: '12px 16px', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 1000, fontSize: 14, fontWeight: 600 }}>
           {toastMessage}
@@ -1408,3 +1408,4 @@ export default function CigarDetailPage() {
     </div>
   )
 }
+
