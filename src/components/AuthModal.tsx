@@ -55,14 +55,6 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
     if (error) {
       setError(error.message)
     } else if (data.user) {
-      // Insert into our users table
-      await supabase.from('users').insert({
-        id: data.user.id,
-        username: username.trim(),
-        email: email.trim().toLowerCase(),
-        role: 'registered',
-        tier: 'free',
-      })
       setMode('verify')
     }
     setLoading(false)

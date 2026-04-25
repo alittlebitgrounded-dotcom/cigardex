@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { resolveIndustryType } from '@/lib/reviewer-publications'
 import AuthModal from '@/components/AuthModal'
 import type { User } from '@supabase/supabase-js'
-
-const INDUSTRY_ROLES = ['store', 'brand', 'reviewer']
 
 const ROLE_LABELS: Record<string, string> = {
   store: 'Tobacconist',
@@ -15,7 +14,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function Header() {
   const [user, setUser] = useState<User | null>(null)
-  const [userProfile, setUserProfile] = useState<{ username: string; role: string } | null>(null)
+  const [userProfile, setUserProfile] = useState<{ username: string; role: string; industryType: string | null } | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
   const [showRoleBanner, setShowRoleBanner] = useState(false)
@@ -39,8 +38,10 @@ export default function Header() {
   async function fetchProfile(userId: string) {
     const { data } = await supabase.from('users').select('username, role').eq('id', userId).maybeSingle()
     if (data) {
-      setUserProfile(data)
-      if (INDUSTRY_ROLES.includes(data.role)) {
+      const { industryType } = await resolveIndustryType(userId, data.role)
+
+      setUserProfile({ ...data, industryType })
+      if (industryType) {
         const dismissed = sessionStorage.getItem(`role_banner_dismissed_${userId}`)
         if (!dismissed) {
           setShowRoleBanner(true)
@@ -66,7 +67,7 @@ export default function Header() {
     setShowUserMenu(false)
   }
 
-  const isIndustry = userProfile && INDUSTRY_ROLES.includes(userProfile.role)
+  const isIndustry = !!userProfile?.industryType
 
   return (
     <>
@@ -85,7 +86,7 @@ export default function Header() {
             <span style={{ fontSize: 20 }}>🍂</span>
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#f5e6c8' }}>
-                Your industry membership is active — welcome, {ROLE_LABELS[userProfile.role] || userProfile.role}
+                Your industry membership is active — welcome, {ROLE_LABELS[userProfile.industryType || ''] || userProfile.industryType}
               </p>
               <p style={{ margin: 0, fontSize: 12, color: '#c4a96a' }}>
                 Your account has been verified. Visit your{' '}
@@ -137,7 +138,7 @@ export default function Header() {
                 )}
                 {isIndustry && (
                   <span style={{ fontSize: 10, background: 'rgba(196,169,106,0.2)', color: '#c4a96a', padding: '1px 6px', borderRadius: 3, fontWeight: 700, border: '1px solid rgba(196,169,106,0.4)' }}>
-                    {userProfile.role === 'store' ? '🏪' : userProfile.role === 'brand' ? '🍂' : '✍️'}
+                    {userProfile?.industryType === 'store' ? '🏪' : userProfile?.industryType === 'brand' ? '🍂' : '✍️'}
                   </span>
                 )}
               </button>
@@ -160,7 +161,7 @@ export default function Header() {
                       <p style={{ margin: 0, fontSize: 12, color: '#8b5e2a' }}>{user.email}</p>
                       {isIndustry && (
                         <p style={{ margin: '4px 0 0', fontSize: 11, color: '#c4a96a', fontWeight: 600 }}>
-                          ✓ {ROLE_LABELS[userProfile.role]} — Verified
+                          ✓ {ROLE_LABELS[userProfile.industryType || ''] || userProfile.industryType} — Verified
                         </p>
                       )}
                     </div>

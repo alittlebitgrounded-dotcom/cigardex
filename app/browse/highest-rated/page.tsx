@@ -21,8 +21,8 @@ const STRENGTH_LABELS: Record<string, string> = { mild: 'Mild', mild_medium: 'Mi
 const STRENGTH_BG: Record<string, string> = { mild: '#e8f5e9', mild_medium: '#c8e6c9', medium: '#fff3e0', medium_full: '#ffe0b2', full: '#fbe9e7' }
 const STRENGTH_TEXT: Record<string, string> = { mild: '#2e7d32', mild_medium: '#388e3c', medium: '#e65100', medium_full: '#bf360c', full: '#b71c1c' }
 
-function priceTier(msrp: number | null): string {
-  if (!msrp) return 'Price N/A'
+function priceTier(msrp: number | null): string | null {
+  if (!msrp) return null
   if (msrp < 5) return '$'; if (msrp < 10) return '$$'; if (msrp < 20) return '$$$'
   if (msrp < 50) return '$$$$'; return '$$$$$'
 }
@@ -176,7 +176,7 @@ export default function BrowseHighestRated() {
                         {cigar.strength && <span style={{ background: STRENGTH_BG[cigar.strength] || '#f5f5f5', color: STRENGTH_TEXT[cigar.strength] || '#555', fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 500 }}>{STRENGTH_LABELS[cigar.strength]}</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 10 }}>
-                        <span style={{ color: '#1a0a00', fontSize: 13, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
+                        {priceTier(cigar.msrp) && <span style={{ color: '#1a0a00', fontSize: 13, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>}
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: 20, fontWeight: 700, color: ratingColor(cigar.avg_rating), lineHeight: 1 }}>{cigar.avg_rating.toFixed(1)}</div>
                           <div style={{ fontSize: 10, color: '#aaa' }}>{cigar.review_count} review{cigar.review_count !== 1 ? 's' : ''}</div>

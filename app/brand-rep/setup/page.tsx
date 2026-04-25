@@ -48,11 +48,13 @@ export default function BrandRepSetupPage() {
       .select('id, role, username, publication_name')
       .eq('id', session.user.id)
       .maybeSingle()
-    if (!profile || profile.role !== 'brand') { router.push('/'); return }
+    if (!profile) { router.push('/'); return }
+    const associations = await fetchAssociations(profile.id)
+    if (profile.role !== 'brand' && associations.length === 0) { router.push('/pro'); return }
     setUserId(profile.id)
     setUsername(profile.username || '')
     setForm({ role_at_brand: profile.publication_name || '' })
-    await Promise.all([fetchAssociations(profile.id), fetchAllBrands()])
+    await fetchAllBrands()
     setLoading(false)
   }
 
@@ -62,7 +64,9 @@ export default function BrandRepSetupPage() {
       .select('id, brand_account_id, status, brand_accounts(name, country_of_origin)')
       .eq('user_id', uid)
       .order('created_at', { ascending: true })
-    if (data) setAssociations(data as unknown as BrandAssociation[])
+    const nextAssociations = (data as unknown as BrandAssociation[]) || []
+    setAssociations(nextAssociations)
+    return nextAssociations
   }
 
   async function fetchAllBrands() {

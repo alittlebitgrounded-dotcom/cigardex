@@ -86,20 +86,19 @@ export default function StoreSetupPage() {
   async function checkAuth() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/?signin=true'); return }
-    const { data: profile } = await supabase.from('users').select('id, role').eq('id', session.user.id).maybeSingle()
-    if (!profile || profile.role !== 'store') { router.push('/'); return }
-    await fetchStore(profile.id)
+    const foundStore = await fetchStore(session.user.id)
+    if (!foundStore) { router.push('/pro'); return }
     setLoading(false)
   }
 
   async function fetchStore(userId: string) {
     const { data: account } = await supabase
       .from('store_accounts').select('id').eq('user_id', userId).maybeSingle()
-    if (!account) return
+    if (!account) return false
     const { data: storeData } = await supabase
       .from('stores').select('id, name, type, address, city, state, phone, website_url, description, hours, active')
       .eq('store_account_id', account.id).maybeSingle()
-    if (!storeData) return
+    if (!storeData) return false
     setStore(storeData)
     setForm({
       name: storeData.name || '',
@@ -118,6 +117,7 @@ export default function StoreSetupPage() {
       loadDesignations(storeData.id),
       fetchGlobalDesignations(),
     ])
+    return true
   }
 
   async function loadDesignations(storeId: string) {

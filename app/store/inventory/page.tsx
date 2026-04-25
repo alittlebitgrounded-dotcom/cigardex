@@ -33,20 +33,20 @@ export default function StoreInventoryPage() {
   async function checkAuth() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/?signin=true'); return }
-    const { data: profile } = await supabase.from('users').select('id, role').eq('id', session.user.id).maybeSingle()
-    if (!profile || profile.role !== 'store') { router.push('/'); return }
-    await fetchStore(profile.id)
+    const foundStore = await fetchStore(session.user.id)
+    if (!foundStore) { router.push('/pro'); return }
     setLoading(false)
   }
 
   async function fetchStore(userId: string) {
     const { data: account } = await supabase.from('store_accounts').select('id').eq('user_id', userId).maybeSingle()
-    if (!account) return
+    if (!account) return false
     const { data: store } = await supabase.from('stores').select('id, name').eq('store_account_id', account.id).maybeSingle()
-    if (!store) return
+    if (!store) return false
     setStoreId(store.id)
     setStoreName(store.name)
     await Promise.all([fetchAllBrands(), fetchCarried(store.id)])
+    return true
   }
 
   async function fetchAllBrands() {
@@ -66,15 +66,23 @@ export default function StoreInventoryPage() {
   async function toggleBrand(brandId: string) {
     if (!storeId || toggling) return
     setToggling(brandId)
+    setMsg('')
     const isCarried = carriedIds.has(brandId)
-    if (isCarried) {
-      await supabase.from('store_brands').delete().eq('store_id', storeId).eq('brand_account_id', brandId)
-      setCarriedIds(prev => { const next = new Set(prev); next.delete(brandId); return next })
-    } else {
-      await supabase.from('store_brands').insert({ store_id: storeId, brand_account_id: brandId })
-      setCarriedIds(prev => new Set([...prev, brandId]))
+    try {
+      if (isCarried) {
+        const { error } = await supabase.from('store_brands').delete().eq('store_id', storeId).eq('brand_account_id', brandId)
+        if (error) throw error
+        setCarriedIds(prev => { const next = new Set(prev); next.delete(brandId); return next })
+      } else {
+        const { error } = await supabase.from('store_brands').insert({ store_id: storeId, brand_account_id: brandId })
+        if (error) throw error
+        setCarriedIds(prev => new Set([...prev, brandId]))
+      }
+    } catch (err: unknown) {
+      setMsg(err instanceof Error ? err.message : 'Could not update inventory.')
+    } finally {
+      setToggling(null)
     }
-    setToggling(null)
   }
 
   if (loading) return (

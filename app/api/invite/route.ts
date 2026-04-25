@@ -1,53 +1,48 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdminFromRequest } from "@/server/admin";
+
+const ALLOWED_INVITE_ROLES = new Set(["brand", "store", "moderator"]);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { supabaseAdmin } = await requireAdminFromRequest(req);
+    const body = await req.json();
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const roleType = typeof body.role_type === "string" ? body.role_type.trim() : "";
+    const company = typeof body.company === "string" ? body.company.trim() : "";
+
+    if (!EMAIL_RE.test(email)) {
+      return NextResponse.json({ error: "A valid email is required" }, { status: 400 });
     }
 
-    const { email, role_type, company } = await req.json()
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email required' }, { status: 400 })
+    if (!ALLOWED_INVITE_ROLES.has(roleType)) {
+      return NextResponse.json({ error: "Invalid invite role" }, { status: 400 });
     }
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (company.length > 200) {
+      return NextResponse.json({ error: "Company name is too long" }, { status: 400 });
     }
 
-    const { data: profile } = await supabaseAdmin
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !['super_admin', 'moderator'].includes(profile.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
     const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: { invited_as: role_type, company },
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/`,
-    })
+      data: { invited_as: roleType, company: company || null },
+      redirectTo: `${siteUrl}/`,
+    });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, user_id: data.user?.id })
-
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 })
+    return NextResponse.json({ success: true, user_id: data.user?.id });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Server error";
+    const status =
+      message === "Unauthorized" ? 401 : message === "Forbidden" ? 403 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

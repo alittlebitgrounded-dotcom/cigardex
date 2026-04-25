@@ -43,8 +43,8 @@ const STRENGTH_TEXT: Record<string, string> = {
   medium_full: '#bf360c', full: '#b71c1c',
 }
 
-function priceTier(msrp: number | null): string {
-  if (!msrp) return 'Price N/A'
+function priceTier(msrp: number | null): string | null {
+  if (!msrp) return null
   if (msrp < 5) return '$'
   if (msrp < 10) return '$$'
   if (msrp < 20) return '$$$'
@@ -107,7 +107,7 @@ function CigarCard({ cigar, badge, discBrandIds, discLineKeys }: {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 10 }}>
         <div>
-          <span style={{ color: '#1a0a00', fontSize: 14, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
+          {priceTier(cigar.msrp) && <span style={{ color: '#1a0a00', fontSize: 14, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>}
           {cigar.avg_rating && <span style={{ color: '#c4a96a', fontSize: 12, marginLeft: 8 }}>★ {cigar.avg_rating.toFixed(1)}</span>}
           {(cigar.review_count ?? 0) > 0 && !cigar.avg_rating && (
             <span style={{ color: '#8b5e2a', fontSize: 11, display: 'block' }}>{cigar.review_count} review{cigar.review_count !== 1 ? 's' : ''}</span>
@@ -475,7 +475,7 @@ export default function Home() {
                         {cigar.country_of_origin && <span style={{ background: '#f0f4f8', color: '#3a5a7a', fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 500 }}>🌍 {cigar.country_of_origin}</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
-                        <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
+                        {priceTier(cigar.msrp) && <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>}
                       </div>
                     </a>
                   )
@@ -516,7 +516,7 @@ export default function Home() {
                         {cigar.strength && <span style={{ background: STRENGTH_BG[cigar.strength] || '#f5f5f5', color: STRENGTH_TEXT[cigar.strength] || '#555', fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 500 }}>{STRENGTH_LABELS[cigar.strength] || cigar.strength}</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0e8dc', paddingTop: 12 }}>
-                        <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>
+                        {priceTier(cigar.msrp) && <span style={{ color: '#1a0a00', fontSize: 15, fontWeight: 700 }}>{priceTier(cigar.msrp)}</span>}
                       </div>
                     </a>
                   )

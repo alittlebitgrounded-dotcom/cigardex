@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { saveReviewerPublicationProfile } from '@/lib/reviewer-publications'
 
 type Section = 'cigars' | 'brands' | 'users' | 'moderation' | 'characteristics' | 'stores' | 'awards' | 'reviews' | 'applications' | 'feedback' | 'timeline' | 'brand_reps'
 
@@ -466,19 +467,29 @@ export default function AdminPage() {
     setAppActioning(app.id)
     try {
       const { data: userRow } = await supabase.from('users').select('id').eq('email', app.email).maybeSingle()
-      if (userRow) {
-        const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : app.role_type === 'reviewer' ? 'reviewer' : 'premium'
-        await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
-        const socialUrls: Record<string, string> = {}
-        if (app.instagram) socialUrls.instagram = app.instagram
+        if (userRow) {
+          const newRole = app.role_type === 'retailer' ? 'store' : app.role_type === 'brand' ? 'brand' : app.role_type === 'reviewer' ? 'reviewer' : 'premium'
+          await supabase.rpc('update_user_role', { user_id: userRow.id, new_role: newRole })
+          const socialUrls: Record<string, string> = {}
+          if (app.instagram) socialUrls.instagram = app.instagram
         if (app.youtube) socialUrls.youtube = app.youtube
         if (app.podcast) socialUrls.podcast = app.podcast
-        await supabase.from('users').update({
-          publication_name: app.company || null,
-          publication_url: app.website || null,
-          social_urls: Object.keys(socialUrls).length > 0 ? socialUrls : null,
-        }).eq('id', userRow.id)
-        if (app.role_type === 'brand' && app.designations && app.designations.length > 0) {
+          await supabase.from('users').update({
+            publication_name: app.company || null,
+            publication_url: app.website || null,
+            social_urls: Object.keys(socialUrls).length > 0 ? socialUrls : null,
+          }).eq('id', userRow.id)
+          if (app.role_type === 'reviewer') {
+            await saveReviewerPublicationProfile(
+              userRow.id,
+              {
+                publicationName: app.company || null,
+                publicationUrl: app.website || null,
+                socialUrls: Object.keys(socialUrls).length > 0 ? socialUrls : null,
+              },
+            )
+          }
+          if (app.role_type === 'brand' && app.designations && app.designations.length > 0) {
           for (const brandName of app.designations) {
             const { data: brandMatch } = await supabase.from('brand_accounts').select('id').ilike('name', brandName).maybeSingle()
             if (brandMatch) {
@@ -792,14 +803,26 @@ export default function AdminPage() {
   async function createUser() {
     setNewUserMsg('')
     if (!newUserEmail || !newUserUsername || !newUserPassword) { setNewUserMsg('All fields required'); return }
-    const { data, error } = await supabase.auth.admin.createUser({ email: newUserEmail, password: newUserPassword, email_confirm: true })
-    if (error) { setNewUserMsg(error.message); return }
-    if (data.user) {
-      await supabase.from('users').insert({ id: data.user.id, username: newUserUsername, email: newUserEmail, role: newUserRole, tier: 'free' })
-      setNewUserMsg(`User ${newUserUsername} created successfully!`)
-      setNewUserEmail(''); setNewUserUsername(''); setNewUserPassword('')
-      fetchSection('users')
-    }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setNewUserMsg('You must be signed in'); return }
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email: newUserEmail,
+        username: newUserUsername,
+        password: newUserPassword,
+        role: newUserRole,
+      }),
+    })
+    const payload = await res.json()
+    if (!res.ok) { setNewUserMsg(payload.error || 'Could not create user'); return }
+    setNewUserMsg(`User ${payload.user.username} created successfully!`)
+    setNewUserEmail(''); setNewUserUsername(''); setNewUserPassword('')
+    fetchSection('users')
   }
   async function createBrand() {
     setNewBrandMsg('')

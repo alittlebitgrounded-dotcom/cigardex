@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { resolveIndustryType } from '@/lib/reviewer-publications'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 
@@ -10,6 +11,11 @@ type UserProfile = {
   id: string
   username: string
   role: string
+  dashboardRole: string
+}
+
+type StoreMembership = {
+  tier: string
 }
 
 type BrandAssociation = {
@@ -17,8 +23,6 @@ type BrandAssociation = {
   status: string
   brand_accounts: { id: string; name: string; logo_url: string | null } | null
 }
-
-const INDUSTRY_ROLES = ['store', 'brand', 'reviewer']
 
 const ROLE_CONTENT: Record<string, {
   icon: string
@@ -100,6 +104,7 @@ export default function ProPage() {
   const [loading, setLoading] = useState(true)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [brandAssociations, setBrandAssociations] = useState<BrandAssociation[]>([])
+  const [storeMembership, setStoreMembership] = useState<StoreMembership | null>(null)
 
   useEffect(() => { checkAuth() }, [])
 
@@ -107,9 +112,19 @@ export default function ProPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/?signin=true'); return }
     const { data } = await supabase.from('users').select('id, username, role').eq('id', session.user.id).maybeSingle()
-    if (!data || !INDUSTRY_ROLES.includes(data.role)) { router.push('/'); return }
-    setProfile(data)
-    if (data.role === 'brand') await fetchBrandAssociations(data.id)
+    if (!data) { router.push('/'); return }
+
+    const [, storeMembershipData] = await Promise.all([
+      fetchBrandAssociations(data.id),
+      fetchStoreMembership(data.id),
+    ])
+
+    const membership = await resolveIndustryType(data.id, data.role)
+    const dashboardRole = membership.industryType
+
+    if (!dashboardRole) { router.push('/'); return }
+
+    setProfile({ ...data, dashboardRole })
     setLoading(false)
   }
 
@@ -119,7 +134,22 @@ export default function ProPage() {
       .select('id, status, brand_accounts(id, name, logo_url)')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
-    if (data) setBrandAssociations(data as unknown as BrandAssociation[])
+    const nextAssociations = (data as unknown as BrandAssociation[]) || []
+    setBrandAssociations(nextAssociations)
+    return nextAssociations
+  }
+
+  async function fetchStoreMembership(userId: string) {
+    const { data } = await supabase
+      .from('store_accounts')
+      .select('tier')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (data) setStoreMembership(data)
+    else setStoreMembership(null)
+
+    return data || null
   }
 
   if (loading) return (
@@ -129,11 +159,23 @@ export default function ProPage() {
   )
 
   if (!profile) return null
-  const content = ROLE_CONTENT[profile.role]
+  const content = ROLE_CONTENT[profile.dashboardRole]
   if (!content) return null
 
   const approvedBrands = brandAssociations.filter(a => a.status === 'approved')
   const pendingBrands = brandAssociations.filter(a => a.status === 'pending')
+  const tools = profile.dashboardRole === 'store'
+    ? [
+      ...content.tools,
+      {
+        icon: '🎁',
+        label: 'Shared Wishlists',
+        description: storeMembership?.tier === 'paid' ? 'Look up opted-in customers by real name.' : 'Paid membership feature for in-store gift shopping.',
+        href: '/store/shared-wishlists',
+        available: storeMembership?.tier === 'paid',
+      },
+    ]
+    : content.tools
 
   return (
     <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: 'system-ui, sans-serif' }}>
@@ -176,7 +218,7 @@ export default function ProPage() {
         </div>
 
         {/* BRAND REP — Your Brands section */}
-        {profile.role === 'brand' && (
+        {profile.dashboardRole === 'brand' && (
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: 0, fontFamily: 'Georgia, serif' }}>Your Brands</h2>
@@ -270,12 +312,12 @@ export default function ProPage() {
         )}
 
         {/* Tools — store and reviewer only */}
-        {profile.role !== 'brand' && content.tools.length > 0 && (
+        {profile.dashboardRole !== 'brand' && tools.length > 0 && (
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e8ddd0', padding: 28, marginBottom: 24 }}>
             <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1a0a00', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>Your Tools</h2>
             <p style={{ fontSize: 13, color: '#8b5e2a', margin: '0 0 18px' }}>Features available to your account.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-              {content.tools.map((tool, i) => (
+              {tools.map((tool, i) => (
                 <div key={i} style={{ background: tool.available ? '#faf8f5' : '#f5f5f5', border: `1px solid ${tool.available ? '#d4b896' : '#e8e8e8'}`, borderRadius: 10, padding: '16px 18px', opacity: tool.available ? 1 : 0.6 }}>
                   <div style={{ fontSize: 22, marginBottom: 8 }}>{tool.icon}</div>
                   <p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a00', margin: '0 0 4px' }}>{tool.label}</p>

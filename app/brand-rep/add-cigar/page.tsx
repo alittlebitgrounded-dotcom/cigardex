@@ -59,25 +59,26 @@ function AddCigarContent() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/?signin=true'); return }
     const { data: profile } = await supabase.from('users').select('id, role').eq('id', session.user.id).maybeSingle()
-    if (!profile || profile.role !== 'brand') { router.push('/'); return }
-    setUserId(session.user.id)
-    setUserRole(profile.role)
 
     const { data: assocs } = await supabase
       .from('brand_rep_brands')
       .select('brand_accounts(id, name)')
       .eq('user_id', session.user.id)
       .eq('status', 'approved')
-    if (assocs) {
-      const brands = assocs.map((a: any) => a.brand_accounts).filter(Boolean) as Brand[]
-      setAllBrands(brands)
-      if (brandIdParam) {
-        const found = brands.find(b => b.id === brandIdParam)
-        if (found) setBrand(found)
-      } else if (brands.length === 1) {
-        setBrand(brands[0])
-        setForm(prev => ({ ...prev, brand_account_id: brands[0].id }))
-      }
+
+    const brands = (assocs || []).map((a: any) => a.brand_accounts).filter(Boolean) as Brand[]
+    if (brands.length === 0) { router.push('/pro'); return }
+
+    setUserId(session.user.id)
+    setUserRole(profile?.role || 'brand')
+    setAllBrands(brands)
+
+    if (brandIdParam) {
+      const found = brands.find(b => b.id === brandIdParam)
+      if (found) setBrand(found)
+    } else if (brands.length === 1) {
+      setBrand(brands[0])
+      setForm(prev => ({ ...prev, brand_account_id: brands[0].id }))
     }
     setLoading(false)
   }

@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import {
+  getReviewerPublicationProfile,
+  saveReviewerPublicationProfile,
+} from '@/lib/reviewer-publications'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 
@@ -11,6 +15,7 @@ export default function ReviewerSetupPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [publicationId, setPublicationId] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
 
@@ -33,15 +38,20 @@ export default function ReviewerSetupPage() {
       .select('id, role, publication_name, publication_url, social_urls')
       .eq('id', session.user.id)
       .maybeSingle()
-    if (!profile || profile.role !== 'reviewer') { router.push('/'); return }
+    if (!profile) { router.push('/'); return }
+
+    const reviewerPublication = await getReviewerPublicationProfile(session.user.id)
+    if (profile.role !== 'reviewer' && !reviewerPublication) { router.push('/pro'); return }
+
     setUserId(profile.id)
+    setPublicationId(reviewerPublication?.publicationId || null)
     setForm({
-      publication_name: profile.publication_name || '',
-      publication_url: profile.publication_url || '',
-      instagram: profile.social_urls?.instagram || '',
-      youtube: profile.social_urls?.youtube || '',
-      podcast: profile.social_urls?.podcast || '',
-      other: profile.social_urls?.other || '',
+      publication_name: reviewerPublication?.publicationName || profile.publication_name || '',
+      publication_url: reviewerPublication?.publicationUrl || profile.publication_url || '',
+      instagram: reviewerPublication?.socialUrls?.instagram || profile.social_urls?.instagram || '',
+      youtube: reviewerPublication?.socialUrls?.youtube || profile.social_urls?.youtube || '',
+      podcast: reviewerPublication?.socialUrls?.podcast || profile.social_urls?.podcast || '',
+      other: reviewerPublication?.socialUrls?.other || profile.social_urls?.other || '',
     })
     setLoading(false)
   }
@@ -61,14 +71,39 @@ export default function ReviewerSetupPage() {
     if (form.podcast.trim()) social_urls.podcast = form.podcast.trim()
     if (form.other.trim()) social_urls.other = form.other.trim()
 
-    const { error: err } = await supabase.from('users').update({
-      publication_name: form.publication_name.trim() || null,
-      publication_url: form.publication_url.trim() || null,
-      social_urls: Object.keys(social_urls).length > 0 ? social_urls : null,
-    }).eq('id', userId)
-    setSaving(false)
-    if (err) { setError(`Save failed: ${err.message}`); return }
-    setMsg('Profile saved.')
+    const publicationName = form.publication_name.trim() || null
+    const publicationUrl = form.publication_url.trim() || null
+
+    try {
+      const { error: err } = await supabase.from('users').update({
+        publication_name: publicationName,
+        publication_url: publicationUrl,
+        social_urls: Object.keys(social_urls).length > 0 ? social_urls : null,
+      }).eq('id', userId)
+
+      if (err) {
+        setError(`Save failed: ${err.message}`)
+        return
+      }
+
+      const savedPublicationId = await saveReviewerPublicationProfile(
+        userId,
+        {
+          publicationName,
+          publicationUrl,
+          socialUrls: Object.keys(social_urls).length > 0 ? social_urls : null,
+        },
+        publicationId,
+      )
+
+      if (savedPublicationId) setPublicationId(savedPublicationId)
+
+      setMsg('Profile saved.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? `Save failed: ${err.message}` : 'Save failed.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return (
